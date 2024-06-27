@@ -3,9 +3,10 @@
 // Check out https://vuejs.org/api/sfc-script-setup.html#script-setup
 import { invoke } from "@tauri-apps/api/core";
 import { onMounted, ref } from "vue";
-import TopicView from "./TopicView.vue";
+import { RouterView } from "vue-router";
 import { getCurrent } from "@tauri-apps/api/webviewWindow";
 import TopicsMenu from './TopicsMenu.vue'
+import Navbar from "./components/Navbar.vue";
 const loading = ref(false);
 const error = ref<string>("");
 export type PartitionInfo = {
@@ -55,20 +56,21 @@ onMounted(() => getCurrent().listen<ClusterConfig>("current-cluster-update", (ev
 }))
 </script>
 <template>
-  <div class="relative">
-    <div class="flex h-screen">
-      <aside class="bg-neutral-100 dark:bg-neutral-900 max-w-sm overflow-auto flex-none">
-        <div class="flex items-baseline leading-none py-1 px-2 bg-neutral-200 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-200 border-b border-neutral-300">
-          <h4 class="uppercase text-xs tracking-wide font-bold">Cluster: <span class="tracking-normal font-semibold normal-case">{{cluster?.name}} ({{cluster?.bootstrap_servers.join(",")}})</span></h4>
+  <div class="relative flex flex-col h-screen">
+    <Navbar />
+    <div class="flex flex-1 border-t border-muted">
+      <aside class="bg-muted text-foreground max-w-sm overflow-auto flex-none">
+        <div class="flex items-baseline leading-none py-1 px-2">
+          <h4 class="uppercase text-xs tracking-wide font-bold">
+            Cluster: 
+            <span class="tracking-normal font-semibold normal-case">
+              {{cluster?.name}} ({{cluster?.bootstrap_servers.join(",")}})
+            </span>
+          </h4>
         </div>
-        <TopicsMenu :error="error" :topics="topicsList" v-model:selectedTopic="selectedTopic" @refresh="fetchTopicsList"/>
+        
       </aside>
-      <main class="bg-white dark:bg-neutral-800 flex-1 h-full overflow-auto">
-        <TopicView v-if="selectedTopic" :topic="selectedTopic" />
-        <div v-else class="h-full flex items-center justify-center">
-          <p>Please select a topic from the list.</p>
-        </div>
-      </main>
+      <RouterView />
     </div>
   </div>
 </template>

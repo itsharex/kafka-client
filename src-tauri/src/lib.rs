@@ -7,19 +7,18 @@ use crate::core::{
     commands,
     config::AppConfiguration,
 };
-use regex::Regex;
 use tauri::{
-    menu::{ MenuBuilder, MenuItem, MenuItemBuilder, SubmenuBuilder }, 
     LogicalPosition, 
-    Manager, 
-    State, 
-    Wry
+    Manager,
 };
 
 #[cfg_attr(mobile, tauri::mobile_enrty_point)]
 pub fn run() {
 
+    let mut ctx = tauri::generate_context!();
     tauri::Builder::default()
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_theme::init(ctx.config_mut()))
         .plugin(tauri_plugin_shell::init())
         .manage(AppConfiguration::load())
         .invoke_handler(tauri::generate_handler![
@@ -29,53 +28,6 @@ pub fn run() {
             commands::create_topic
         ])
         .setup(|app| {
-            let mut menu_items = app.state::<AppConfiguration>().config
-                .lock()
-                .unwrap()
-                .clusters()
-                .into_iter()
-                .map(|item| {
-                    let id = format!("cluster_item_{}", item.name);
-                    let title = format!("{} ({})", item.name, item.bootstrap_servers.join(","));
-                    let item = MenuItemBuilder::with_id(id, title).build(app).unwrap();
-                    item
-                })
-                .take(3)
-                .collect::<Vec<MenuItem<Wry>>>();
-            let item1 = menu_items.pop();
-            let item2 = menu_items.pop();
-            let item3 = menu_items.pop();
-
-            let mut submenu_builder = SubmenuBuilder::new(app, "Clusters");
-            if let Some(menu) = item1 {
-                submenu_builder = submenu_builder.item(&menu);
-            }
-            if let Some(menu) = item2 {
-                submenu_builder = submenu_builder.item(&menu);
-            }
-            if let Some(menu) = item3 {
-                submenu_builder = submenu_builder.item(&menu);
-            }
-            let clusters_submenu = submenu_builder.build().unwrap();
-            
-            app.set_menu(MenuBuilder::new(app).item(&clusters_submenu).build().unwrap());
-            app.on_menu_event(|app, event| {
-                let state: State<AppConfiguration> = app.state();
-                let regex = Regex::new(r"cluster_item_(.+)").unwrap();
-                if let Some(captures) = regex.captures(event.id().0.as_str()) {
-                    if let Some(cluster_name) = captures.get(1) {
-                        let updated_cluster_config = state
-                            .config
-                            .lock()
-                            .unwrap()
-                            .set_default_cluster(cluster_name.as_str())
-                            .unwrap();
-                        app.emit("current-cluster-update", updated_cluster_config)
-                            .unwrap();
-                    }
-                }
-            });
-
             let window = app.get_webview_window("main").unwrap();
             window
                 .set_position(LogicalPosition::new(1200, 10))
@@ -83,7 +35,7 @@ pub fn run() {
             
             Ok(())
         })
-        .run(tauri::generate_context!())
+        .run(ctx)
         .expect("error while running tauri application");
 
     

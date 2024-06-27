@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "window-state-capability",
+  "description": "Capability to get and set the window state.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "window:allow-start-dragging",
+    "window:allow-set-fullscreen",
+    "window:allow-toggle-maximize",
+    "window:allow-minimize",
+    "window:allow-close"
+  ]
+}

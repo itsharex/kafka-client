@@ -10,10 +10,12 @@ import {
   DialogPanel,
   DialogTitle,
 } from '@headlessui/vue';
+import { Button } from "./components/ui/button";
 
 const props = defineProps<{
   topic: TopicInfo;
 }>();
+
 const loading = ref(false);
 const error = ref("");
 type MessageEnvelope = {
@@ -50,12 +52,11 @@ function jsonText(obj: string) {
 function fetchMessage() {
   loading.value = true;
   error.value = "";
-  const args = {
+  invoke<MessageEnvelope>("consume_topic_by_timestamp", {
     topic: props.topic?.name,
     start: Date.now() - 12 * 60 * 60 * 1000,
     end: Date.now(),
-  };
-  invoke<MessageEnvelope>("consume_topic_by_timestamp", args)
+  })
     .catch((err) => {
       error.value = err;
       throw err;
@@ -77,91 +78,91 @@ onMounted(() =>
 
 <template>
   <header class="px-4 py-2 bg-neutral-100 shadow sticky top-0 flex items-center justify-between">
-	<div>
-		<h4 class="text-lg font-semibold" v-if="topic" v-text="topic.name"></h4>
-		<h6 class="text-sm uppercase tracking-wide text-neutral-700">Paritions: {{ topic.partitions.length }}</h6>
-	</div>
-	<button class="px-3 py-2 rounded bg-primary-600 text-white leading-none font-semibold" type="button" @click="() => fetchMessage()">Start</button>
+    <div>
+      <h4 class="text-lg font-semibold" v-if="topic" v-text="topic.name"></h4>
+      <h6 class="text-sm uppercase tracking-wide text-neutral-700">Paritions: {{ topic.partitions.length }}</h6>
+    </div>
+    <Button type="button" @click="() => fetchMessage()">Start Consuming</Button>
   </header>
 
   <main class="p-4">
-	<p v-if="loading">Loading...</p>
-	<ul v-else-if="!error" class="space-y-4">
-		<li v-for="currentMessage in messages" :key="currentMessage.payload" class="bg-neutral-100 shadow rounded-md p-2">
-			<ul v-if="Object.keys(currentMessage.headers).length > 0" class="space-x-2 flex items-center flex-wrap mb-2">
-				<li v-for="key in Object.keys(currentMessage.headers)">
-					<span v-text="key" class="px-2 py-1 text-xs bg-neutral-300 rounded-full"></span>
-				</li>
-			</ul>
-			<pre @click="() => openModal(currentMessage)" class="truncate mb-2"><code v-text="currentMessage.payload"></code></pre>
-      <footer class="-mx-2 -mb-2 px-2 py-1 border-t border-neutral-300 text-xs flex justify-between">
-        <div class="space-x-3 flex items-baseline">
-          <p>Key: "{{ currentMessage.key }}"</p>
-          <p>Partition: {{ currentMessage.partition }}</p>
-          <p>Offset: {{ currentMessage.offset }}</p>
-        </div>
-        <div class="space-x-2 flex items-baseline">
-          <p>{{ new Date(currentMessage.timestamp).toLocaleDateString() }}</p>
-          <p>{{ new Date(currentMessage.timestamp).toLocaleTimeString() }}</p>
-        </div>
-      </footer>
-		</li>
-	</ul>
-	<p v-else="error" class="bg-error-200 text-error-700 px-4 py-2" v-text="error"></p>
-  <TransitionRoot appear :show="isOpen" as="template" :on-after-leave="cleanUpModal">
-    <Dialog as="div" @close="closeModal" class="relative z-10">
-      <TransitionChild
-        as="template"
-        enter="duration-300 ease-out"
-        enter-from="opacity-0"
-        enter-to="opacity-100"
-        leave="duration-200 ease-in"
-        leave-from="opacity-100"
-        leave-to="opacity-0"
-      >
-        <div class="fixed inset-0 bg-neutral-900/70" />
-      </TransitionChild>
-
-      <div class="fixed inset-0 overflow-y-auto">
-        <div
-          class="flex min-h-full items-center justify-center p-4 text-center"
+    <p v-if="loading">Loading...</p>
+    <ul v-else-if="!error" class="space-y-4">
+      <li v-for="currentMessage in messages" :key="currentMessage.payload" class="bg-neutral-100 shadow rounded-md p-2">
+        <ul v-if="Object.keys(currentMessage.headers).length > 0" class="space-x-2 flex items-center flex-wrap mb-2">
+          <li v-for="key in Object.keys(currentMessage.headers)">
+            <span v-text="key" class="px-2 py-1 text-xs bg-neutral-300 rounded-full"></span>
+          </li>
+        </ul>
+        <pre @click="() => openModal(currentMessage)" class="truncate mb-2"><code v-text="currentMessage.payload"></code></pre>
+        <footer class="-mx-2 -mb-2 px-2 py-1 border-t border-neutral-300 text-xs flex justify-between">
+          <div class="space-x-3 flex items-baseline">
+            <p>Key: "{{ currentMessage.key }}"</p>
+            <p>Partition: {{ currentMessage.partition }}</p>
+            <p>Offset: {{ currentMessage.offset }}</p>
+          </div>
+          <div class="space-x-2 flex items-baseline">
+            <p>{{ new Date(currentMessage.timestamp).toLocaleDateString() }}</p>
+            <p>{{ new Date(currentMessage.timestamp).toLocaleTimeString() }}</p>
+          </div>
+        </footer>
+      </li>
+    </ul>
+    <p v-else="error" class="bg-error-200 text-error-700 px-4 py-2" v-text="error"></p>
+    <TransitionRoot appear :show="isOpen" as="template" :on-after-leave="cleanUpModal">
+      <Dialog as="div" @close="closeModal" class="relative z-10">
+        <TransitionChild
+          as="template"
+          enter="duration-300 ease-out"
+          enter-from="opacity-0"
+          enter-to="opacity-100"
+          leave="duration-200 ease-in"
+          leave-from="opacity-100"
+          leave-to="opacity-0"
         >
-          <TransitionChild
-            as="template"
-            enter="duration-300 ease-out"
-            enter-from="opacity-0 scale-95"
-            enter-to="opacity-100 scale-100"
-            leave="duration-200 ease-in"
-            leave-from="opacity-100 scale-100"
-            leave-to="opacity-0 scale-95"
-          >
-            <DialogPanel
-              class="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all"
-            >
-              <DialogTitle
-                as="h3"
-                class="text-lg font-medium leading-6 text-gray-900"
-              >
-                Message on {{modalMessage?.partition}}@{{ modalMessage?.offset }}
-              </DialogTitle>
-              <div class="mt-2 p-3 rounded-lg bg-neutral-100">
-                <pre class="text-sm text-gray-500"><code v-text="JSON.stringify(modalMessage?.payload, null, 4)"></code></pre>
-              </div>
+          <div class="fixed inset-0 bg-neutral-900/70" />
+        </TransitionChild>
 
-              <div class="mt-4">
-                <button
-                  type="button"
-                  class="inline-flex justify-center rounded-md border border-transparent bg-primary-100 px-2 py-1 text-sm font-medium text-primary-900 hover:bg-primary-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
-                  @click="closeModal"
+        <div class="fixed inset-0 overflow-y-auto">
+          <div
+            class="flex min-h-full items-center justify-center p-4 text-center"
+          >
+            <TransitionChild
+              as="template"
+              enter="duration-300 ease-out"
+              enter-from="opacity-0 scale-95"
+              enter-to="opacity-100 scale-100"
+              leave="duration-200 ease-in"
+              leave-from="opacity-100 scale-100"
+              leave-to="opacity-0 scale-95"
+            >
+              <DialogPanel
+                class="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all"
+              >
+                <DialogTitle
+                  as="h3"
+                  class="text-lg font-medium leading-6 text-gray-900"
                 >
-                  Close
-                </button>
-              </div>
-            </DialogPanel>
-          </TransitionChild>
+                  Message on {{modalMessage?.partition}}@{{ modalMessage?.offset }}
+                </DialogTitle>
+                <div class="mt-2 p-3 rounded-lg bg-neutral-100">
+                  <pre class="text-sm text-gray-500"><code v-text="JSON.stringify(modalMessage?.payload, null, 4)"></code></pre>
+                </div>
+
+                <div class="mt-4">
+                  <button
+                    type="button"
+                    class="inline-flex justify-center rounded-md border border-transparent bg-primary-100 px-2 py-1 text-sm font-medium text-primary-900 hover:bg-primary-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                    @click="closeModal"
+                  >
+                    Close
+                  </button>
+                </div>
+              </DialogPanel>
+            </TransitionChild>
+          </div>
         </div>
-      </div>
-    </Dialog>
-  </TransitionRoot>
+      </Dialog>
+    </TransitionRoot>
   </main>
 </template>

@@ -32,7 +32,7 @@ const filteredTopicsList = computed(() =>
 
 const isNewTopicDialogOpen = ref(false);
 const createNewTopic = () => {
-	invoke("create_topic", {topic: newTopicName.value, partitions: newTopicPartitions.value})
+	invoke("create_topic", {topic: newTopicName.value, partitions: newTopicPartitions.value, config: []})
 	.then((success) => {
 		console.log({success})
 		newTopicName.value = "";
@@ -44,7 +44,7 @@ const createNewTopic = () => {
 </script>
 <template>
 	<div
-		class="flex items-center justify-between leading-none py-1 px-2 bg-neutral-200 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-200 mb-2">
+		class="flex items-center justify-between leading-none py-1 px-2 border-t border-muted">
 		<h4 class="uppercase text-xs tracking-wide font-bold">Topics</h4>
 		<div class="space-x-2">
 			<Dialog v-model:open="isNewTopicDialogOpen">
@@ -83,11 +83,11 @@ const createNewTopic = () => {
 			</Dialog>
 
 			<Button variant="outline" size="xs" @click="onEvent('refresh')">
-				<ArrowPathIcon class="block w-4 h-4 text-neutral-800" />
+				<ArrowPathIcon class="block w-4 h-4" />
 			</Button>
 		</div>
 	</div>
-	<div class="px-2 mb-2">
+	<div class="px-2 py-2 border-t border-muted">
 		<Input id="search-input" class="w-full form-input py-2 rounded" v-model="search"
 			placeholder="Search Topics..." />
 		<p v-if="props.error" class="-mx-2 px-2 py-1 leading-tight bg-error-100 text-error-800 my-2"

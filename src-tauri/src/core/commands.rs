@@ -30,6 +30,7 @@ pub async fn create_topic(
     app_config: State<'_, AppConfiguration>,
     topic: &str,
     partitions: i32,
+    config: Vec<(&str, &str)>
 ) -> Result<String, String> {
     let future = admin::create_topic(
         app_config
@@ -41,6 +42,7 @@ pub async fn create_topic(
         topic,
         partitions,
         1,
+        config,
         None,
     );
     let result = future.await;

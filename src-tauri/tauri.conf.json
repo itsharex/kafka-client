@@ -16,7 +16,7 @@
       "icons/icon.ico"
     ]
   },
-  "productName": "tauri-app",
+  "productName": "kafka-client",
   "version": "0.0.0",
   "identifier": "com.tauri.dev",
   "plugins": {},
@@ -25,7 +25,8 @@
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "tauri-app",
+        "decorations": false,
+        "title": "Kafka Client",
         "width": 1200,
         "height": 800
       }
