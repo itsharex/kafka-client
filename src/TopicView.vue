@@ -28,10 +28,10 @@ function getBrokerLabel(brokerId: number): String {
 </script>
 
 <template>
-  <header class="px-4 py-2 bg-neutral-100 shadow sticky top-0 flex items-center justify-between">
+  <header class="px-4 py-2 bg-muted shadow sticky top-0 flex items-center justify-between z-10">
     <div>
       <h4 class="text-lg font-semibold" v-if="topic" v-text="topic.name"></h4>
-      <h6 class="text-sm uppercase tracking-wide text-neutral-700">Paritions: {{ topic.partitions.length }}</h6>
+      <h6 class="text-sm uppercase tracking-wide text-muted-foreground">Paritions: {{ topic.partitions.length }}</h6>
     </div>
   </header>
 
@@ -39,8 +39,8 @@ function getBrokerLabel(brokerId: number): String {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>#</TableHead>
-          <TableHead>Leader</TableHead>
+          <TableHead class="w-10">#</TableHead>
+          <TableHead class="w-64">Leader</TableHead>
           <TableHead>Replicas</TableHead>
         </TableRow>
       </TableHeader>
