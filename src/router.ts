@@ -1,7 +1,7 @@
 import { RouteRecordRaw, createMemoryHistory, createRouter } from "vue-router";
-import Home from "./pages/Home.vue";
+import Topics from "./pages/Topics.vue";
 
-const routes: RouteRecordRaw[] = [{ path: "/", component: Home }];
+const routes: RouteRecordRaw[] = [{ path: "/", component: Topics }];
 
 export const router = createRouter({
   history: createMemoryHistory(),

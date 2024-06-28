@@ -23,7 +23,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
 
 <template>
-  <MenubarPortal>
+  <MenubarPortal to="#app">
     <MenubarSubContent
       v-bind="forwarded"
       :class="

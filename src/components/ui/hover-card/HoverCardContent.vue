@@ -25,7 +25,7 @@ const forwardedProps = useForwardProps(delegatedProps)
 </script>
 
 <template>
-  <HoverCardPortal>
+  <HoverCardPortal to="#app">
     <HoverCardContent
       v-bind="forwardedProps"
       :class="

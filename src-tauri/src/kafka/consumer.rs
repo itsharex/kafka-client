@@ -9,6 +9,8 @@ use std::{collections::HashMap, time::Duration};
 
 use crate::kafka::metadata::Topic;
 
+use super::metadata::ClusterMetadata;
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MessageEnvelope<K, P> {
     pub key: K,
@@ -22,7 +24,7 @@ pub struct MessageEnvelope<K, P> {
 pub struct KafkaConsumer {
     servers: Vec<String>,
     consumer: StreamConsumer,
-    topics_metadata: Option<Vec<Topic>>,
+    metadata: Option<ClusterMetadata>,
 }
 
 impl KafkaConsumer {
@@ -41,33 +43,28 @@ impl KafkaConsumer {
                     )
                     .as_str(),
                 ),
-            topics_metadata: None,
+            metadata: None,
         }
     }
 
-    pub fn get_topics_metadata(&mut self) -> Result<Vec<Topic>, String> {
-        match &self.topics_metadata {
-            Some(metadata) => Result::Ok(metadata.to_vec()),
+    pub fn get_metadata(&mut self) -> Result<ClusterMetadata, String> {
+        match &self.metadata {
+            Some(metadata) => Result::Ok(metadata.to_owned()),
             None => self
                 .fetch_metadata()
                 .and_then(|meta| Ok(self.update_metadata(meta))),
         }
     }
 
-    fn update_metadata(&mut self, metadata: Vec<Topic>) -> Vec<Topic> {
-        self.topics_metadata = Some(metadata.clone());
+    fn update_metadata(&mut self, metadata: ClusterMetadata) -> ClusterMetadata {
+        self.metadata = Some(metadata.clone());
         metadata
     }
 
-    fn fetch_metadata(&self) -> Result<Vec<Topic>, String> {
+    fn fetch_metadata(&self) -> Result<ClusterMetadata, String> {
         self.consumer
             .fetch_metadata(None, Duration::from_secs(2))
-            .map(|data| {
-                data.topics()
-                    .into_iter()
-                    .map(Topic::from)
-                    .collect::<Vec<Topic>>()
-            })
+            .map(|data| ClusterMetadata::from(&data))
             .map_err(|err| err.to_string())
     }
 
@@ -79,9 +76,9 @@ impl KafkaConsumer {
     ) -> Result<MessageEnvelope<String, String>, String> {
         let mut start_offset_timestamp_list = TopicPartitionList::new();
         let topic_partitions = self
-            .get_topics_metadata()
-            .map(|items| {
-                items.into_iter().find_map(|item| {
+            .get_metadata()
+            .map(|metadata| {
+                metadata.topics.into_iter().find_map(|item| {
                     if item.name == topic {
                         Some(item.partitions)
                     } else {

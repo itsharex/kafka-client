@@ -6,6 +6,7 @@ import { HomeIcon, RefreshCw, XIcon } from 'lucide-vue-next'
 import { Icons } from "./Icons"
 import { DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose} from "./ui/dialog"
 import { onMounted, ref } from 'vue'
+import { Button } from './ui/button'
 
 const version = ref()
 const arc = ref()

@@ -13,7 +13,7 @@ const forwarded = useForwardPropsEmits(props, emits)
 </script>
 
 <template>
-  <DrawerPortal>
+  <DrawerPortal to="#app">
     <DrawerOverlay />
     <DrawerContent
       v-bind="forwarded" :class="cn(

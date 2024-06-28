@@ -22,7 +22,7 @@ const forwarded = useForwardPropsEmits(delegatedProps, emits)
 </script>
 
 <template>
-  <ContextMenuPortal>
+  <ContextMenuPortal to="#app">
     <ContextMenuContent
       v-bind="forwarded"
       :class="cn(

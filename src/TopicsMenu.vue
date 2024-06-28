@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Fzf } from 'fzf';
 import { computed, ref } from 'vue';
-import { TopicInfo } from './App.vue';
 import { RadioGroup, RadioGroupOption } from '@headlessui/vue';
 import { ArrowPathIcon, PlusIcon } from '@heroicons/vue/16/solid';
 import Dialog from './components/ui/dialog/Dialog.vue';
@@ -15,6 +14,7 @@ import DialogFooter from './components/ui/dialog/DialogFooter.vue';
 import Button from './components/ui/button/Button.vue';
 import Label from './components/ui/label/Label.vue';
 import { invoke } from '@tauri-apps/api/core';
+import { TopicInfo } from './pages/Home.vue';
 
 const props = defineProps<{ topics: TopicInfo[], error: string }>();
 const newTopicName = ref<string>();

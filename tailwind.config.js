@@ -5,6 +5,7 @@ module.exports = {
   darkMode: ["class"],
   safelist: ["dark"],
   prefix: "",
+  important: "#app",
   
   content: [
     './pages/**/*.{ts,tsx,vue}',

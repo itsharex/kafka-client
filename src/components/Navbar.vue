@@ -7,11 +7,13 @@ import AboutDialog from './AboutDialog.vue'
 import {Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem, MenubarSeparator, MenubarShortcut, MenubarSub, MenubarSubTrigger, MenubarSubContent, MenubarCheckboxItem, MenubarLabel, MenubarRadioGroup, MenubarRadioItem} from './ui/menubar'
 import { Dialog, DialogTrigger } from './ui/dialog'
 import { Icons } from './Icons'
+import { onMounted } from 'vue'
 
 function closeWindow() {
   const appWindow = getCurrent()
   appWindow.close()
 }
+onMounted(() => console.log("<Navbar />"))
 </script>
 
 <template>
@@ -37,139 +39,17 @@ function closeWindow() {
             <MenubarItem>
               Preferences... <MenubarShortcut>⌘,</MenubarShortcut>
             </MenubarItem>
-            <MenubarSeparator />
-            <MenubarItem>
-              Hide Music... <MenubarShortcut>⌘H</MenubarShortcut>
-            </MenubarItem>
-            <MenubarItem>
-              Hide Others... <MenubarShortcut>⇧⌘H</MenubarShortcut>
-            </MenubarItem>
             <MenubarShortcut />
             <MenubarItem @click="closeWindow">
-              Quit Music <MenubarShortcut>⌘Q</MenubarShortcut>
+              Quit <MenubarShortcut>⌘Q</MenubarShortcut>
             </MenubarItem>
           </MenubarContent>
           <AboutDialog />
         </Dialog>
       </MenubarMenu>
       <MenubarMenu>
-        <MenubarTrigger class="relative">
-          File
-        </MenubarTrigger>
-        <MenubarContent>
-          <MenubarSub>
-            <MenubarSubTrigger>New</MenubarSubTrigger>
-            <MenubarSubContent class="w-[230px]">
-              <MenubarItem>
-                Playlist <MenubarShortcut>⌘N</MenubarShortcut>
-              </MenubarItem>
-              <MenubarItem disabled>
-                Playlist from Selection <MenubarShortcut>⇧⌘N</MenubarShortcut>
-              </MenubarItem>
-              <MenubarItem>
-                Smart Playlist... <MenubarShortcut>⌥⌘N</MenubarShortcut>
-              </MenubarItem>
-              <MenubarItem>Playlist Folder</MenubarItem>
-              <MenubarItem disabled>
-                Genius Playlist
-              </MenubarItem>
-            </MenubarSubContent>
-          </MenubarSub>
-          <MenubarItem>
-            Open Stream URL... <MenubarShortcut>⌘U</MenubarShortcut>
-          </MenubarItem>
-          <MenubarItem>
-            Close Window <MenubarShortcut>⌘W</MenubarShortcut>
-          </MenubarItem>
-          <MenubarSeparator />
-          <MenubarSub>
-            <MenubarSubTrigger>Library</MenubarSubTrigger>
-            <MenubarSubContent>
-              <MenubarItem>Update Cloud Library</MenubarItem>
-              <MenubarItem>Update Genius</MenubarItem>
-              <MenubarSeparator />
-              <MenubarItem>Organize Library...</MenubarItem>
-              <MenubarItem>Export Library...</MenubarItem>
-              <MenubarSeparator />
-              <MenubarItem>Import Playlist...</MenubarItem>
-              <MenubarItem disabled>
-                Export Playlist...
-              </MenubarItem>
-              <MenubarItem>Show Duplicate Items</MenubarItem>
-              <MenubarSeparator />
-              <MenubarItem>Get Album Artwork</MenubarItem>
-              <MenubarItem disabled>
-                Get Track Names
-              </MenubarItem>
-            </MenubarSubContent>
-          </MenubarSub>
-          <MenubarItem>
-            Import... <MenubarShortcut>⌘O</MenubarShortcut>
-          </MenubarItem>
-          <MenubarItem disabled>
-            Burn Playlist to Disc...
-          </MenubarItem>
-          <MenubarSeparator />
-          <MenubarItem>
-            Show in Finder <MenubarShortcut>⇧⌘R</MenubarShortcut>
-          </MenubarItem>
-          <MenubarItem>Convert</MenubarItem>
-          <MenubarSeparator />
-          <MenubarItem>Page Setup...</MenubarItem>
-          <MenubarItem disabled>
-            Print... <MenubarShortcut>⌘P</MenubarShortcut>
-          </MenubarItem>
-        </MenubarContent>
-      </MenubarMenu>
-      <MenubarMenu>
-        <MenubarTrigger>Edit</MenubarTrigger>
-        <MenubarContent>
-          <MenubarItem disabled>
-            Undo <MenubarShortcut>⌘Z</MenubarShortcut>
-          </MenubarItem>
-          <MenubarItem disabled>
-            Redo <MenubarShortcut>⇧⌘Z</MenubarShortcut>
-          </MenubarItem>
-          <MenubarSeparator />
-          <MenubarItem disabled>
-            Cut <MenubarShortcut>⌘X</MenubarShortcut>
-          </MenubarItem>
-          <MenubarItem disabled>
-            Copy <MenubarShortcut>⌘C</MenubarShortcut>
-          </MenubarItem>
-          <MenubarItem disabled>
-            Paste <MenubarShortcut>⌘V</MenubarShortcut>
-          </MenubarItem>
-          <MenubarSeparator />
-          <MenubarItem>
-            Select All <MenubarShortcut>⌘A</MenubarShortcut>
-          </MenubarItem>
-          <MenubarItem disabled>
-            Deselect All <MenubarShortcut>⇧⌘A</MenubarShortcut>
-          </MenubarItem>
-          <MenubarSeparator />
-          <MenubarItem>
-            Smart Dictation...
-            <MenubarShortcut>
-              <Mic class="h-4 w-4" />
-            </MenubarShortcut>
-          </MenubarItem>
-          <MenubarItem>
-            Emoji & Symbols
-            <MenubarShortcut>
-              <Globe class="h-4 w-4" />
-            </MenubarShortcut>
-          </MenubarItem>
-        </MenubarContent>
-      </MenubarMenu>
-      <MenubarMenu>
         <MenubarTrigger>View</MenubarTrigger>
         <MenubarContent>
-          <MenubarCheckboxItem>Show Playing Next</MenubarCheckboxItem>
-          <MenubarCheckboxItem checked>
-            Show Lyrics
-          </MenubarCheckboxItem>
-          <MenubarSeparator />
           <MenubarItem inset disabled>
             Show Status Bar
           </MenubarItem>

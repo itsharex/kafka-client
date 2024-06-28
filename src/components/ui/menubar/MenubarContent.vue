@@ -27,7 +27,7 @@ const forwardedProps = useForwardProps(delegatedProps)
 </script>
 
 <template>
-  <MenubarPortal>
+  <MenubarPortal to="#app">
     <MenubarContent
       v-bind="forwardedProps"
       :class="

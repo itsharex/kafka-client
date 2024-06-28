@@ -5,7 +5,7 @@ use crate::core::config::{AppConfiguration, ClusterConfig};
 
 use crate::kafka::admin;
 use crate::kafka::consumer::{KafkaConsumer, MessageEnvelope};
-use crate::kafka::metadata::Topic;
+use crate::kafka::metadata::ClusterMetadata;
 
 #[tauri::command]
 pub fn get_current_cluster(app_config: State<AppConfiguration>) -> ClusterConfig {
@@ -13,7 +13,7 @@ pub fn get_current_cluster(app_config: State<AppConfiguration>) -> ClusterConfig
 }
 
 #[tauri::command(async)]
-pub fn get_topics(app_config: State<AppConfiguration>) -> Result<Vec<Topic>, String> {
+pub fn get_topics(app_config: State<AppConfiguration>) -> Result<ClusterMetadata, String> {
     KafkaConsumer::connect(
         app_config
             .config
@@ -22,7 +22,7 @@ pub fn get_topics(app_config: State<AppConfiguration>) -> Result<Vec<Topic>, Str
             .default_cluster_config()
             .bootstrap_servers,
     )
-    .get_topics_metadata()
+    .get_metadata()
 }
 
 #[tauri::command(async)]
