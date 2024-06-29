@@ -7,10 +7,6 @@ use crate::core::{
     commands,
     config::AppConfiguration,
 };
-use tauri::{
-    LogicalPosition, 
-    Manager,
-};
 
 #[cfg_attr(mobile, tauri::mobile_enrty_point)]
 pub fn run() {
@@ -27,14 +23,6 @@ pub fn run() {
             commands::consume_topic_by_timestamp,
             commands::create_topic
         ])
-        .setup(|app| {
-            let window = app.get_webview_window("main").unwrap();
-            window
-                .set_position(LogicalPosition::new(1200, 10))
-                .expect("Error while chainging position of the window!");
-            
-            Ok(())
-        })
         .run(ctx)
         .expect("error while running tauri application");
 
