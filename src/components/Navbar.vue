@@ -30,6 +30,12 @@ onMounted(() => console.log("<Navbar />"))
         </MenubarTrigger>
         <Dialog :modal="false">
           <MenubarContent>
+            <MenubarItem>
+              <RouterLink to="/">Topics View</RouterLink>
+            </MenubarItem>
+            <MenubarItem>
+              <RouterLink to="/consumer-groups">Groups View</RouterLink>
+            </MenubarItem>
             <DialogTrigger as-child>
               <MenubarItem>
                 About App

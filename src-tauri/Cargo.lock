@@ -1867,6 +1867,7 @@ dependencies = [
 name = "kafka_app"
 version = "0.0.0"
 dependencies = [
+ "byteorder",
  "futures",
  "rdkafka",
  "regex",

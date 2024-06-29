@@ -3,18 +3,21 @@ import { Fzf } from 'fzf';
 import { computed, ref } from 'vue';
 import { RadioGroup, RadioGroupOption } from '@headlessui/vue';
 import { ArrowPathIcon, PlusIcon } from '@heroicons/vue/16/solid';
-import Dialog from './components/ui/dialog/Dialog.vue';
-import DialogTrigger from './components/ui/dialog/DialogTrigger.vue';
-import DialogContent from './components/ui/dialog/DialogContent.vue';
-import DialogHeader from './components/ui/dialog/DialogHeader.vue';
-import DialogTitle from './components/ui/dialog/DialogTitle.vue';
-import DialogDescription from './components/ui/dialog/DialogDescription.vue';
-import Input from './components/ui/input/Input.vue';
-import DialogFooter from './components/ui/dialog/DialogFooter.vue';
-import Button from './components/ui/button/Button.vue';
-import Label from './components/ui/label/Label.vue';
-import { invoke } from '@tauri-apps/api/core';
-import { TopicInfo } from './pages/Home.vue';
+import {
+	Dialog,
+	DialogTrigger,
+	DialogContent,
+	DialogHeader,
+	DialogFooter,
+	DialogTitle,
+	DialogDescription,
+} from '@/components/ui/dialog';
+
+import Input from '@/components/ui/input/Input.vue';
+import Button from '@/components/ui/button/Button.vue';
+import Label from '@/components/ui/label/Label.vue';
+
+import { createTopic, TopicInfo } from '@/lib/kafka';
 
 const props = defineProps<{ topics: TopicInfo[], error: string }>();
 const newTopicName = ref<string>();
@@ -31,15 +34,16 @@ const filteredTopicsList = computed(() =>
 ); 
 
 const isNewTopicDialogOpen = ref(false);
-const createNewTopic = () => {
-	invoke("create_topic", {topic: newTopicName.value, partitions: newTopicPartitions.value, config: []})
-	.then((success) => {
-		console.log({success})
-		newTopicName.value = "";
-		newTopicPartitions.value = 3;
-		onEvent("refresh");
-		isNewTopicDialogOpen.value = false;
-	});
+const createNewTopic = async () => {
+	if (!newTopicName.value) {
+		return;
+	}
+
+	await createTopic({topic: newTopicName.value, partitions: newTopicPartitions.value, config: []})
+	newTopicName.value = "";
+	newTopicPartitions.value = 3;
+	onEvent("refresh");
+	isNewTopicDialogOpen.value = false;
 }
 </script>
 <template>

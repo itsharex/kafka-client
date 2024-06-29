@@ -1,10 +1,11 @@
+use rdkafka::groups::GroupList;
 use tauri::async_runtime::block_on;
 use tauri::{Manager, State};
 
 use crate::core::config::{AppConfiguration, ClusterConfig};
 
 use crate::kafka::admin;
-use crate::kafka::consumer::{KafkaConsumer, MessageEnvelope};
+use crate::kafka::consumer::{ConsumerGroup, KafkaConsumer, MessageEnvelope};
 use crate::kafka::metadata::ClusterMetadata;
 
 #[tauri::command]
@@ -24,6 +25,21 @@ pub fn get_topics(app_config: State<AppConfiguration>) -> Result<ClusterMetadata
     )
     .get_metadata()
 }
+
+#[tauri::command(async)]
+pub fn get_groups(app_config: State<AppConfiguration>) -> Result<Vec<ConsumerGroup>, String> {
+    KafkaConsumer::connect(
+        app_config
+            .config
+            .lock()
+            .unwrap()
+            .default_cluster_config()
+            .bootstrap_servers,
+    )
+    .get_groups_list()
+}
+
+
 
 #[tauri::command(async)]
 pub async fn create_topic(

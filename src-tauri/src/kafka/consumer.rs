@@ -1,15 +1,13 @@
+use byteorder::BigEndian;
 use rdkafka::{
-    consumer::{Consumer, StreamConsumer},
-    message::{Headers, OwnedMessage},
-    ClientConfig, Message, TopicPartitionList,
+    consumer::{Consumer, StreamConsumer}, groups::{GroupInfo, GroupList, GroupMemberInfo}, message::{Headers, OwnedMessage}, util::Timeout, ClientConfig, Message, TopicPartitionList
 };
 use serde::{Deserialize, Serialize};
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, io::Cursor, time::Duration};
+use byteorder::{ReadBytesExt};
 
-use crate::kafka::metadata::Topic;
-
-use super::metadata::ClusterMetadata;
+use super::{metadata::ClusterMetadata, util::read_str};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MessageEnvelope<K, P> {
@@ -21,6 +19,88 @@ pub struct MessageEnvelope<K, P> {
     pub timestamp: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemberAssignment {
+    pub topic: String,
+    pub partitions: Vec<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConsumerGroup {
+    name: String,
+    state: String,
+    protocol: String,
+    protocol_type: String,
+    members: Vec<ConsumerGroupMember>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+ pub struct ConsumerGroupMember {
+    id: String,
+    client_id: String,
+    client_host: String,
+    metadata: Vec<u8>,
+    assignments: Vec<MemberAssignment>
+}
+
+impl ConsumerGroup {
+    pub fn from(group: &GroupInfo) -> Self {
+        let members: Vec<ConsumerGroupMember> = group.members().into_iter()
+            .map(|member| ConsumerGroupMember::from(member))
+            .filter_map(|res| res.ok())
+            .collect();
+
+        ConsumerGroup {
+            name: group.name().to_string(),
+            state: group.state().to_string(),
+            protocol: group.protocol().to_string(),
+            protocol_type: group.protocol_type().to_string(),
+            members
+        }
+    }
+}
+
+impl ConsumerGroupMember {
+    pub fn from(member: &GroupMemberInfo) -> Result<Self, String> {
+        let member_metadata = member.metadata().map(|meta| meta.to_vec()).unwrap_or(vec![]);
+        ConsumerGroupMember::parse_member_assignment(member.assignment())
+            .map(|mem_assignments| ConsumerGroupMember {
+                id: member.id().to_string(),
+                client_id: member.client_id().to_string(),
+                client_host: member.client_host().to_string(),
+                metadata: member_metadata,
+                assignments: mem_assignments
+            })
+    }
+
+    fn parse_member_assignment(payload: Option<&[u8]>) -> Result<Vec<MemberAssignment>, String> {
+        if payload.is_none(){
+            return Ok(vec![]);
+        }
+
+        let mut cursor = Cursor::new(payload.unwrap());
+        let _version = cursor.read_i16::<BigEndian>()
+            .map_err(|e| format!("{}", e))?;
+        let assign_len = cursor.read_i32::<BigEndian>()
+            .map_err(|e| format!("{}", e))?;
+        let mut assigns = Vec::with_capacity(assign_len as usize);
+        for _ in 0..assign_len {
+            let topic = read_str(&mut cursor)
+                .map_err(|e| format!("{}", e))?
+                .to_string();
+            let partition_len = cursor.read_i32::<BigEndian>()
+                .map_err(|e| format!("{}", e))?;
+            let mut partitions = Vec::with_capacity(partition_len as usize);
+            for _ in 0..partition_len {
+                let partition = cursor.read_i32::<BigEndian>()
+                    .map_err(|e| format!("{}", e))?;
+                partitions.push(partition);
+            }
+            assigns.push(MemberAssignment { topic, partitions })
+        }
+        Ok(assigns)
+    }
+}
 pub struct KafkaConsumer {
     servers: Vec<String>,
     consumer: StreamConsumer,
@@ -54,6 +134,12 @@ impl KafkaConsumer {
                 .fetch_metadata()
                 .and_then(|meta| Ok(self.update_metadata(meta))),
         }
+    }
+
+    pub fn get_groups_list(&self) -> Result<Vec<ConsumerGroup>, String> {
+        self.consumer.fetch_group_list(None, Timeout::After(Duration::from_secs(300)))
+        .map_err(|err| err.to_string())
+        .map(|group_list| group_list.groups().into_iter().map(|group| ConsumerGroup::from(group)).collect())
     }
 
     fn update_metadata(&mut self, metadata: ClusterMetadata) -> ClusterMetadata {

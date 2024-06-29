@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { BrokerInfo, ClusterMetadata, PartitionInfo, TopicInfo } from "./pages/Topics.vue";
+import { BrokerInfo, ClusterMetadata, PartitionInfo, TopicInfo } from "@/lib/kafka";
 import { computed } from "vue";
-import {Badge} from "./components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table";
+import {Badge} from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const props = defineProps<{
   topic: TopicInfo;
