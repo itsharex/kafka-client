@@ -33,10 +33,18 @@ export function getClusterMetadata(): Promise<ClusterMetadata> {
   return invoke<ClusterMetadata>("get_topics");
 }
 
+export type TopicGroupOffsets = {
+  topic: string;
+  partitions: { partition: number; startOffset: number; endOffset: number; currentOffset: number }[];
+};
+export function getGroupOffsets(groupName: string): Promise<TopicGroupOffsets[]> {
+  return invoke<TopicGroupOffsets[]>("get_group_offsets", { groupName });
+}
+
 // Consumer Groups Metadata
 export type MemberAssignment = {
   topic: string;
-  partitions: number;
+  partitions: number[];
 };
 
 export type ConsumerGroup = {

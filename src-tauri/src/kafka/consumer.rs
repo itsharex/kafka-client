@@ -1,13 +1,19 @@
 use byteorder::BigEndian;
+use itertools::Itertools;
 use rdkafka::{
-    consumer::{Consumer, StreamConsumer}, groups::{GroupInfo, GroupList, GroupMemberInfo}, message::{Headers, OwnedMessage}, util::Timeout, ClientConfig, Message, TopicPartitionList
+    config, consumer::{Consumer, StreamConsumer}, groups::{GroupInfo,  GroupMemberInfo}, message::{Headers, OwnedMessage}, util::Timeout, ClientConfig, Message, Offset, TopicPartitionList
 };
-use serde::{Deserialize, Serialize};
-
-use std::{collections::HashMap, io::Cursor, time::Duration};
+use serde::{de::value, Deserialize, Serialize};
+use std::{borrow::BorrowMut, collections::HashMap, io::Cursor, time::Duration};
 use byteorder::{ReadBytesExt};
 
 use super::{metadata::ClusterMetadata, util::read_str};
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct TopicPartitionOffset {
+    topic: String,
+    offsets: Vec<(i32, i64)>
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MessageEnvelope<K, P> {
@@ -102,24 +108,34 @@ impl ConsumerGroupMember {
     }
 }
 pub struct KafkaConsumer {
-    servers: Vec<String>,
     consumer: StreamConsumer,
     metadata: Option<ClusterMetadata>,
 }
 
 impl KafkaConsumer {
     pub fn connect(bootstrap_servers: Vec<String>) -> Self {
+        let config: HashMap<String, String> = HashMap::from([
+            ("bootstrap.servers".into(), bootstrap_servers.join(",")),
+            ("group.id".into(), "runtime".into()),
+            ("enable.auto.commit".into(), "false".into()),
+        ]);
+
+        KafkaConsumer::connect_config(config)
+    }
+    
+    pub fn connect_config(config: HashMap<String, String>) -> Self {
+        let mut client_config = ClientConfig::new();
+
+        for (key, value) in config.clone().into_iter() {
+            client_config.set(key, value);
+        }
+
         Self {
-            servers: bootstrap_servers.clone(),
-            consumer: ClientConfig::new()
-                .set("bootstrap.servers", bootstrap_servers.join(","))
-                .set("group.id", "runtime")
-                .set("enable.auto.commit", "false")
-                .create::<StreamConsumer>()
+            consumer:  client_config.create::<StreamConsumer>()
                 .expect(
                     format!(
-                        "Error while connecting to servers {}",
-                        bootstrap_servers.join(",")
+                        "Error while connecting using config {:#?}",
+                        config
                     )
                     .as_str(),
                 ),
@@ -134,6 +150,33 @@ impl KafkaConsumer {
                 .fetch_metadata()
                 .and_then(|meta| Ok(self.update_metadata(meta))),
         }
+    }
+
+    pub fn get_committed_offsets(mut self) -> Result<Vec<ConsumerGroupOffsetDescription>, String> {
+        self.get_metadata().and_then(|metadata| {
+            let mut tpl_stored = TopicPartitionList::new();
+            for topic in metadata.topics {
+                for partition in topic.partitions {
+                    tpl_stored.add_partition_offset(topic.name.as_str(), partition.id, Offset::Stored).unwrap();
+                }
+            }
+            let mut tpl_end = tpl_stored.clone();
+            tpl_end.set_all_offsets(Offset::End).unwrap();
+            let mut tpl_beginning = tpl_stored.clone();
+            tpl_beginning.set_all_offsets(Offset::Beginning).unwrap();
+
+            self.consumer.committed_offsets(tpl_beginning, Timeout::Never).map_err(|err| err.to_string())
+                .map(form_topic_partition_list_to_map)
+                .and_then(|start| {
+                    self.consumer.committed_offsets(tpl_end, Timeout::Never).map_err(|err| err.to_string())
+                        .map(form_topic_partition_list_to_map)
+                        .and_then(|end| {
+                            self.consumer.committed_offsets(tpl_stored, Timeout::Never).map_err(|err| err.to_string())
+                                .map(form_topic_partition_list_to_map)
+                                .map(|stored| from_offset_map_tuple_to_description_vec(start, end, stored))
+                        })
+                })
+        })
     }
 
     pub fn get_groups_list(&self) -> Result<Vec<ConsumerGroup>, String> {
@@ -242,4 +285,72 @@ impl KafkaConsumer {
             timestamp,
         }
     }
+}
+
+type TopicOffsetsMap = HashMap<String, Vec<(i32, i64)>>;
+type TopicOffsetsTuple = (String, Vec<(i32, i64)>);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConsumerGroupOffsetDescription {
+    topic: String,
+    partitions: Vec<ConsumerGroupPartitionOffsets>
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct  ConsumerGroupPartitionOffsets {
+    partition: i32,
+    start_offset: i64,
+    end_offset: i64,
+    current_offset: i64
+}
+impl ConsumerGroupPartitionOffsets {
+    pub fn lag(self) -> i64 {
+        self.end_offset - self.current_offset
+    }
+}
+fn from_offset_map_tuple_to_description_vec(start_offsets_map: TopicOffsetsMap, end_offsets_map: TopicOffsetsMap, current_offsets_map: TopicOffsetsMap) -> Vec<ConsumerGroupOffsetDescription> {
+    current_offsets_map.keys().into_iter().map(|topic| {
+        let start_part_map = start_offsets_map.get(topic)
+            .map(|partition_list| partition_list.to_owned().into_iter().collect::<HashMap<i32, i64>>())
+            .unwrap_or_default();
+
+        let end_part_map = end_offsets_map.get(topic)
+            .map(|partition_list| partition_list.to_owned().into_iter().collect::<HashMap<i32, i64>>())
+            .unwrap_or_default();
+
+        let invalid_offset: i64 = -1;
+        current_offsets_map.get(topic)
+            .map(|list|  ConsumerGroupOffsetDescription {
+                topic: topic.to_string(),
+                partitions: list.to_owned().into_iter().sorted_by(|part1, part2| part1.0.cmp(&part2.0))
+                    .map(|(part, offset)| ConsumerGroupPartitionOffsets{
+                        partition: part,
+                        start_offset: *(start_part_map.get(&part).unwrap_or(&invalid_offset)),
+                        end_offset: *(end_part_map.get(&part).unwrap_or(&invalid_offset)),
+                        current_offset: offset
+                    })
+                    .collect()
+            })
+            .unwrap()
+    })
+    .collect()
+}
+
+fn form_topic_partition_list_to_map(tpl: TopicPartitionList) -> TopicOffsetsMap {
+    let entry = tpl.to_topic_map().into_iter()
+        .filter_map(|((top, part), offset)| match offset {
+            Offset::Offset(val) => Some((top, part, val)),
+            _ => None
+        })
+        .collect::<Vec<(String, i32, i64)>>();
+
+    let mut out: HashMap<String, Vec<(i32, i64)>> = HashMap::new();
+    for (topic, partition, offset) in entry {
+        if out.contains_key(topic.as_str()) {
+            out.get_mut(topic.as_str()).unwrap().push((partition, offset));
+        } else {
+            out.insert(topic.to_string(), vec![(partition, offset)]);
+        }
+    }
+    out
 }

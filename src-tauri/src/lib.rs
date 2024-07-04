@@ -22,7 +22,8 @@ pub fn run() {
             commands::get_topics,
             commands::consume_topic_by_timestamp,
             commands::create_topic,
-            commands::get_groups
+            commands::get_groups,
+            commands::get_group_offsets,
         ])
         .run(ctx)
         .expect("error while running tauri application");

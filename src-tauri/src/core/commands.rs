@@ -1,11 +1,11 @@
-use rdkafka::groups::GroupList;
+use std::collections::HashMap;
 use tauri::async_runtime::block_on;
 use tauri::{Manager, State};
 
 use crate::core::config::{AppConfiguration, ClusterConfig};
 
 use crate::kafka::admin;
-use crate::kafka::consumer::{ConsumerGroup, KafkaConsumer, MessageEnvelope};
+use crate::kafka::consumer::{ConsumerGroup, ConsumerGroupOffsetDescription, KafkaConsumer, MessageEnvelope};
 use crate::kafka::metadata::ClusterMetadata;
 
 #[tauri::command]
@@ -24,6 +24,17 @@ pub fn get_topics(app_config: State<AppConfiguration>) -> Result<ClusterMetadata
             .bootstrap_servers,
     )
     .get_metadata()
+}
+
+#[tauri::command(async)]
+pub fn get_group_offsets(app_config: State<AppConfiguration>, group_name: String) -> Result<Vec<ConsumerGroupOffsetDescription>, String> {
+    let servers = app_config.config.lock().unwrap()
+        .default_cluster_config().bootstrap_servers;
+    
+    KafkaConsumer::connect_config(HashMap::from([
+       ("bootstrap.servers".to_owned(), servers.join(",")),
+       ("group.id".to_owned(), group_name.clone())
+    ])).get_committed_offsets()
 }
 
 #[tauri::command(async)]
