@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import {  onMounted, ref } from "vue";
-import { getCurrent } from "@tauri-apps/api/webviewWindow";
-import TopicsMenu from "@/TopicsMenu.vue";
-import TopicView from "@/TopicView.vue";
-import { ConsumerGroup, TopicInfo, getConsumerGroups } from "@/lib/kafka";
-import { ClusterConfig, getConfig } from "@/lib/config";
+import { ConsumerGroup, GroupOffset, createConsumerGroup, getConsumerGroups } from "@/lib/kafka";
 import GroupList from "@/components/ConsumerGroups/GroupList.vue";
 import GroupDetail from "@/components/ConsumerGroups/GroupDetail.vue";
+import { ToastProvider, Toaster, useToast } from "@/components/ui/toast";
 const loading = ref(false);
 const error = ref<string>("");
 
@@ -29,6 +26,7 @@ function fetchConsumerGroups() {
 }
 
 const selectedGroup = ref<ConsumerGroup>();
+
 onMounted(() => fetchConsumerGroups());
 </script>
 <template>
@@ -38,9 +36,12 @@ onMounted(() => fetchConsumerGroups());
     </aside>
     <main class="flex-1 h-full overflow-auto">
         <p class="p-2" v-if="selectedGroup == null">
-            Please select a topic from topic list.
+            Please select a consumer group from groups list.
         </p>
         <GroupDetail v-else :group="selectedGroup" />
     </main>
+    <div class="grid gap-2">
+      <Toaster/>
+    </div>
   </div>
 </template>

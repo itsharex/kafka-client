@@ -10,7 +10,6 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@headlessui/vue": "^1.7.22",
     "@heroicons/vue": "^2.1.4",
     "@tauri-apps/api": "^2.0.0-beta.13",
     "@tauri-apps/plugin-os": "^2.0.0-beta.5",
@@ -37,7 +36,6 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@headlessui/tailwindcss": "^0.2.1",
     "@tailwindcss/forms": "^0.5.7",
     "@tauri-apps/cli": "^2.0.0-beta.20",
     "@types/node": "^20.14.9",

@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 
 const props = withDefaults(defineProps<ComboboxContentProps & { class?: HTMLAttributes['class'] }>(), {
   dismissable: false,
-})
+});
 const emits = defineEmits<ComboboxContentEmits>()
 
 const delegatedProps = computed(() => {

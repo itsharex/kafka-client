@@ -1,63 +1,104 @@
 <script setup lang="ts">
 import { Fzf } from 'fzf';
-import { computed, ref } from 'vue';
-import { RadioGroup, RadioGroupOption } from '@headlessui/vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { ArrowPathIcon, } from '@heroicons/vue/16/solid';
 
 import Input from '@/components/ui/input/Input.vue';
 import Button from '@/components/ui/button/Button.vue';
 
-import { ConsumerGroup } from '@/lib/kafka';
+import { ClusterMetadata, ConsumerGroup, GroupOffset, createConsumerGroup, getClusterMetadata } from '@/lib/kafka';
+import { useToast } from '@/components/ui/toast';
+import { PlusIcon } from 'lucide-vue-next';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import NewConsumerGroupForm from '@/components/ConsumerGroups/NewConsumerGroupForm.vue';
+import { Command, CommandEmpty, CommandItem, CommandList } from '@/components/ui/command';
+import CommandInput from '@/components/ui/command/CommandInput.vue';
+
+const {toast} = useToast();
+const topicsList = ref<string[]>(["test-topic"]);
+function fetchTopics() {
+  getClusterMetadata()
+    .then((data) => {
+      topicsList.value = data.topics.map(t => t.name);
+    })
+    .catch((err) => {
+      toast({title: "Error", description: err});
+    });
+}
+onMounted(() => fetchTopics());
 
 const props = defineProps<{ groups: ConsumerGroup[], error: string }>();
 const onEvent = defineEmits(['refresh']);
+const isCreateGroupDialogOpen = ref(false);
 const selectedGroupModel = defineModel<ConsumerGroup | undefined>('selectedGroup')
 const groupsSearchIndex = computed(() => new Fzf(props.groups, { selector: (d) => d.name, sort: true }));
-const search = ref("");
-const filteredGroupList = computed(() =>
+const filterGroupList = (searchTerm: string) =>
 	groupsSearchIndex.value
-		.find(search.value)
+		.find(searchTerm)
 		.sort((a, b) => b.score - a.score)
-		.map((e) => e.item)
-); 
+		.map((e) => e.item);
 
+const createNewConsumerGroup = (data: {groupId: string, topics: string[], offset: GroupOffset}) => {
+  createConsumerGroup(data.groupId, data.topics, data.offset)
+    .then(() => {
+		onEvent("refresh");
+		isCreateGroupDialogOpen.value = false;
+	})
+    .catch((err) => toast({
+      title: "Error",
+      description: err
+    }));
+}
 </script>
 <template>
 	<div
 		class="flex items-center justify-between leading-none py-1 px-2 border-t border-muted">
-		<h4 class="uppercase text-xs tracking-wide font-bold">Topics</h4>
+		<h4 class="uppercase text-xs tracking-wide font-bold">Consumer Groups</h4>
 		<div class="space-x-2">
+			<Dialog v-model:open="isCreateGroupDialogOpen">
+				<DialogTrigger as-child>
+					<Button variant="outline" size="xs">
+						<PlusIcon class="block w-4 h-4" />
+					</Button>
+				</DialogTrigger>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>New Consumer Group</DialogTitle>
+						<DialogDescription>Commit new consumer group offsets to the broker</DialogDescription>
+					</DialogHeader>
+					<NewConsumerGroupForm id="create-consumer-group-form" :topic-list="topicsList" @create="createNewConsumerGroup"></NewConsumerGroupForm>
+					<DialogFooter>
+						<Button type="submit" form="create-consumer-group-form">Create Group</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 			<Button variant="outline" size="xs" @click="onEvent('refresh')">
 				<ArrowPathIcon class="block w-4 h-4" />
 			</Button>
 		</div>
 	</div>
-	<div class="px-2 py-2 border-t border-muted">
-		<Input id="search-input" class="w-full form-input py-2 rounded" v-model="search"
-			placeholder="Search Groups..." />
-		<p v-if="props.error" class="-mx-2 px-2 py-1 leading-tight bg-error-100 text-error-800 my-2"
-			v-text="props.error"></p>
-	</div>
 	<div class="px-2">
-		<RadioGroup v-if="filteredGroupList.length > 0" v-model="selectedGroupModel">
-			<RadioGroupOption v-for="group of filteredGroupList" :key="group.name"
-				class="-mx-2 px-4 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 ui-checked:bg-primary ui-checked:text-white cursor-pointer"
-				:value="group">
-				<code class="text-xs leading-none font-bold" v-text="group.name"></code>
-				<p class="text-opacity-25 font-medium text-xs uppercase">
-					Members: {{ group.members.length }}
-				</p>
-			</RadioGroupOption>
-		</RadioGroup>
-
-		<p v-else-if="groups.length > 0">
-			No Groups Match the search keywords. <Button variant="link" class="p-0 h-auto" @click.prevent="search = ''">Clear</Button> search keyword.
-		</p>
-		<p v-else>
-			No groups found.
-			<Button @click="onEvent('refresh')" size="sm">
-				Refresh Groups
-			</Button>
-		</p>
+		<Command v-model="selectedGroupModel" :filter-function="(_, search) => filterGroupList(search)">
+			<CommandInput id="search-input" placeholder="Search Groups..." />
+			<p v-if="props.error" class="-mx-2 px-2 py-1 leading-tight bg-error-100 text-error-800 my-2"
+				v-text="props.error"></p>
+			<CommandList>
+				<CommandEmpty>
+					<p v-if="groups.length > 0">
+						No Groups Match the search keywords. Try clearing search keyword.
+					</p>
+					<p v-else>
+						No groups found.
+						<Button variant="link" @click="onEvent('refresh')" size="xs">
+							Refresh Groups
+						</Button>
+					</p>
+				</CommandEmpty>
+				<CommandItem v-for="group of groups" :key="group.name" :value="group"
+				class="flex flex-col items-start">
+					<p v-text="`${group.name} (${group.members.length})`"></p>
+				</CommandItem>
+			</CommandList>
+		</Command>
 	</div>
 </template>

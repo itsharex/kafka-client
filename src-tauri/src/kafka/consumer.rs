@@ -1,13 +1,14 @@
 use byteorder::BigEndian;
 use itertools::Itertools;
 use rdkafka::{
-    config, consumer::{Consumer, StreamConsumer}, groups::{GroupInfo,  GroupMemberInfo}, message::{Headers, OwnedMessage}, util::Timeout, ClientConfig, Message, Offset, TopicPartitionList
+    consumer::{Consumer, StreamConsumer}, groups::{GroupInfo,  GroupMemberInfo}, message::{Headers, OwnedMessage}, util::Timeout, ClientConfig, Message, Offset, TopicPartitionList
 };
-use serde::{de::value, Deserialize, Serialize};
-use std::{borrow::BorrowMut, collections::HashMap, io::Cursor, time::Duration};
-use byteorder::{ReadBytesExt};
+use serde::{Deserialize, Serialize};
+use tauri::http::header;
+use std::{collections::HashMap, io::Cursor, time::Duration};
+use byteorder::ReadBytesExt;
 
-use super::{metadata::ClusterMetadata, util::read_str};
+use super::{admin::get_topic_partition_offsets, metadata::ClusterMetadata, util::read_str};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TopicPartitionOffset {
@@ -153,30 +154,34 @@ impl KafkaConsumer {
     }
 
     pub fn get_committed_offsets(mut self) -> Result<Vec<ConsumerGroupOffsetDescription>, String> {
-        self.get_metadata().and_then(|metadata| {
-            let mut tpl_stored = TopicPartitionList::new();
-            for topic in metadata.topics {
-                for partition in topic.partitions {
-                    tpl_stored.add_partition_offset(topic.name.as_str(), partition.id, Offset::Stored).unwrap();
-                }
+        let metadata = self.get_metadata()?;
+        
+        let mut tpl_stored = TopicPartitionList::new();
+        for topic in metadata.topics {
+            for partition in topic.partitions {
+                tpl_stored.add_partition_offset(topic.name.as_str(), partition.id, Offset::Stored).unwrap();
             }
-            let mut tpl_end = tpl_stored.clone();
-            tpl_end.set_all_offsets(Offset::End).unwrap();
-            let mut tpl_beginning = tpl_stored.clone();
-            tpl_beginning.set_all_offsets(Offset::Beginning).unwrap();
+        }
 
-            self.consumer.committed_offsets(tpl_beginning, Timeout::Never).map_err(|err| err.to_string())
-                .map(form_topic_partition_list_to_map)
-                .and_then(|start| {
-                    self.consumer.committed_offsets(tpl_end, Timeout::Never).map_err(|err| err.to_string())
-                        .map(form_topic_partition_list_to_map)
-                        .and_then(|end| {
-                            self.consumer.committed_offsets(tpl_stored, Timeout::Never).map_err(|err| err.to_string())
-                                .map(form_topic_partition_list_to_map)
-                                .map(|stored| from_offset_map_tuple_to_description_vec(start, end, stored))
-                        })
-                })
-        })
+        let mut tpl_end = tpl_stored.clone();
+        tpl_end.set_all_offsets(Offset::End).unwrap();
+        let end_offsets = unsafe {
+            get_topic_partition_offsets(self.consumer.client(), &tpl_end)
+            .map(form_topic_partition_list_to_map)?
+        };
+
+        let mut tpl_beginning = tpl_stored.clone();
+        tpl_beginning.set_all_offsets(Offset::Beginning).unwrap();
+        let start_offsets = unsafe {
+            get_topic_partition_offsets(self.consumer.client(), &tpl_beginning)
+            .map(form_topic_partition_list_to_map)?
+        };
+
+        let stored_offset =  self.consumer.committed_offsets(tpl_stored, Timeout::Never)
+                            .map_err(|err| err.to_string())
+                            .map(form_topic_partition_list_to_map)?;
+
+        Ok(from_offset_map_tuple_to_description_vec(start_offsets, end_offsets, stored_offset))
     }
 
     pub fn get_groups_list(&self) -> Result<Vec<ConsumerGroup>, String> {
@@ -201,7 +206,7 @@ impl KafkaConsumer {
         &mut self,
         topic: &str,
         start: i64,
-        end: i64,
+        _end: i64,
     ) -> Result<MessageEnvelope<String, String>, String> {
         let mut start_offset_timestamp_list = TopicPartitionList::new();
         let topic_partitions = self
@@ -260,13 +265,11 @@ impl KafkaConsumer {
             .map(|h| {
                 let mut map = HashMap::with_capacity(h.count());
                 for i in 0..h.count() {
-                    let (key, val) = h
-                        .get(i)
-                        .map(|(key, val)| {
-                            (key.to_string(), String::from_utf8_lossy(val).to_string())
-                        })
-                        .unwrap();
-                    map.insert(key, val);
+                    let header = h.get(i);
+                    let key = header.key;
+                    let val = header.value.unwrap_or_else(|| &[] as &[u8] );
+
+                    map.insert(key.to_string(), String::from_utf8_lossy(val).to_string());
                 }
                 map
             })
@@ -288,7 +291,6 @@ impl KafkaConsumer {
 }
 
 type TopicOffsetsMap = HashMap<String, Vec<(i32, i64)>>;
-type TopicOffsetsTuple = (String, Vec<(i32, i64)>);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConsumerGroupOffsetDescription {

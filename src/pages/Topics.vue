@@ -29,9 +29,9 @@ function fetchClusterMetadata() {
       loading.value = false;
     });
 }
+onMounted(() => fetchClusterMetadata());
 
 const selectedTopic = ref<TopicInfo>();
-onMounted(() => fetchClusterMetadata());
 onMounted(() => getConfig().then(config => cluster.value = config));
 onMounted(() => getCurrent().listen<ClusterConfig>("current-cluster-update", (event) => {
   cluster.value = event.payload;

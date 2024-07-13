@@ -84,7 +84,7 @@ watchEffect(async () => {
       <CardContent class="p-4 space-y-4">
         <div v-if="committedOffsets.length > 0" v-for="topicOffsets in committedOffsets" :key="topicOffsets.topic">
           <h4 class="text-lg font-semibold" v-text="topicOffsets.topic"></h4>
-          <Table class="max-h-96">
+          <Table class="max-h-96c">
             <TableHeader>
               <TableRow>
                 <TableHead class="w-16">Partition #</TableHead>

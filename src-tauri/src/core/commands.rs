@@ -1,6 +1,8 @@
 use std::collections::HashMap;
+use rdkafka::Offset;
+use serde::{Deserialize, Serialize};
 use tauri::async_runtime::block_on;
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 
 use crate::core::config::{AppConfiguration, ClusterConfig};
 
@@ -80,6 +82,34 @@ pub async fn create_topic(
     }
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(tag="type", content="content")]
+pub enum GroupOffset {
+    Beginning,
+    End,
+    Tail(i64),
+    Offset(i64),
+}
+impl Into<Offset> for GroupOffset {
+    fn into(self) -> Offset {
+        match self {
+            Self::End => Offset::End,
+            Self::Beginning => Offset::Beginning,
+            Self::Tail(offset) => Offset::OffsetTail(offset),
+            Self::Offset(timestamp) => Offset::Offset(timestamp)
+        }
+    }
+}
+
+
+#[tauri::command(async)]
+pub async fn create_group_offsets(app_config: State<'_, AppConfiguration>, group_id: &str, topics: Vec<&str>, initial_offset: GroupOffset) -> Result<(), String> {
+    let servers = app_config.config.lock().unwrap()
+        .default_cluster_config().bootstrap_servers;
+
+    admin::create_consumer_group(servers, group_id, topics, initial_offset).await
+}
+
 #[tauri::command(async)]
 pub async fn consume_topic_by_timestamp(
     window: tauri::WebviewWindow,
@@ -106,8 +136,7 @@ pub async fn consume_topic_by_timestamp(
         if message.timestamp > end {
             break;
         }
-        window
-            .emit("new_message", message)
+        window.emit("new_message", message)
             .expect("Failed to emit event");
     });
 

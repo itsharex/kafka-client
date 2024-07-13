@@ -41,6 +41,15 @@ export function getGroupOffsets(groupName: string): Promise<TopicGroupOffsets[]>
   return invoke<TopicGroupOffsets[]>("get_group_offsets", { groupName });
 }
 
+export type GroupOffset =
+  | { type: "Beginning" }
+  | { type: "End" }
+  | { type: "Tail"; content: number }
+  | { type: "Offset"; content: number };
+export function createConsumerGroup(groupId: string, topics: string[], initialOffset: GroupOffset): Promise<void> {
+  return invoke<void>("create_group_offsets", { groupId, topics, initialOffset });
+}
+
 // Consumer Groups Metadata
 export type MemberAssignment = {
   topic: string;

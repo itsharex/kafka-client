@@ -25,6 +25,6 @@ const { toasts } = useToast()
       </div>
       <component :is="toast.action" />
     </Toast>
-    <ToastViewport />
+    <ToastViewport class="space-y-2"/>
   </ToastProvider>
 </template>
