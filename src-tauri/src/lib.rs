@@ -22,6 +22,7 @@ pub fn run() {
             commands::get_topics,
             commands::consume_topic_by_timestamp,
             commands::create_topic,
+            commands::delete_topic,
             commands::get_groups,
             commands::get_group_offsets,
             commands::create_group_offsets,

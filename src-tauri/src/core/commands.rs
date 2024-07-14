@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use rdkafka::Offset;
 use serde::{Deserialize, Serialize};
 use tauri::async_runtime::block_on;
-use tauri::{Emitter, Manager, State};
+use tauri::{Emitter,  State};
 
 use crate::core::config::{AppConfiguration, ClusterConfig};
 
@@ -26,6 +26,18 @@ pub fn get_topics(app_config: State<AppConfiguration>) -> Result<ClusterMetadata
             .bootstrap_servers,
     )
     .get_metadata()
+}
+
+#[tauri::command(async)]
+pub async fn delete_topic(app_config: State<'_, AppConfiguration>, topic: &str) -> Result<String, String> {
+    let bootstrap_servers = app_config
+        .config
+        .lock()
+        .unwrap()
+        .default_cluster_config()
+        .bootstrap_servers;
+
+    admin::delete_topic(bootstrap_servers, topic).await
 }
 
 #[tauri::command(async)]

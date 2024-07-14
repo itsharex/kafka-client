@@ -6,6 +6,10 @@ export function createTopic(topicCreateRequest: CreateTopicRequest): Promise<und
   return invoke("create_topic", topicCreateRequest);
 }
 
+export function deleteTopic(topic: string): Promise<string> {
+  return invoke("delete_topic", { topic });
+}
+
 // Topics & Broker Metadata
 export type PartitionInfo = {
   id: number;

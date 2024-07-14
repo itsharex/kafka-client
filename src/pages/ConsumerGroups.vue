@@ -40,8 +40,5 @@ onMounted(() => fetchConsumerGroups());
         </p>
         <GroupDetail v-else :group="selectedGroup" />
     </main>
-    <div class="grid gap-2">
-      <Toaster/>
-    </div>
   </div>
 </template>

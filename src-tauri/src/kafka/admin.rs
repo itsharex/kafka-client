@@ -1,6 +1,4 @@
-use std::{borrow::Borrow, ffi::CStr, ptr::slice_from_raw_parts, time::Duration};
-
-use itertools::all;
+use std::{borrow::Borrow, ffi::CStr, fmt::format, ptr::slice_from_raw_parts, time::Duration};
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication, TopicResult}, bindings::{rd_kafka_AdminOptions_new, rd_kafka_ListOffsets, rd_kafka_ListOffsetsResultInfo_topic_partition, rd_kafka_ListOffsets_result_infos, rd_kafka_event_ListOffsets_result, rd_kafka_event_destroy, rd_kafka_event_error, rd_kafka_event_error_string, rd_kafka_queue_destroy, rd_kafka_queue_new, rd_kafka_queue_poll}, client::{Client, DefaultClientContext}, config::FromClientConfig, consumer::{BaseConsumer, CommitMode, Consumer}, error::IsError, metadata::Metadata, topic_partition_list::TopicPartitionListElem, util::Timeout, ClientConfig, ClientContext, Offset, TopicPartitionList
 };
@@ -50,6 +48,23 @@ pub async fn create_topic(
         .expect("Could not get Result");
     return out.clone();
 }
+
+pub async fn delete_topic(bootstrap_servers: Vec<String>, topic: &str) -> Result<String, String> {
+    // TODO: make sure topic is not in use by any consumer group assignments
+    // if topic_in_use {
+    //   return Err(format!("Topic '{}' has partitions assigned to consumer groups"));
+    // }
+
+    let admin = create_admin_client(bootstrap_servers, ClientConfig::default());
+    let results = admin.delete_topics(&[topic], &AdminOptions::default())
+    .await
+    .map_err(|err| err.to_string())?;
+
+    let result = results.first().unwrap().to_owned();
+        
+    result.map_err(|(err_str, err_code)| format!("[{}]: {}", err_code, err_str))
+}
+
 
 pub async fn create_consumer_group(
     bootstrap_servers: Vec<String>,

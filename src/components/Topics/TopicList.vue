@@ -16,10 +16,14 @@ import Input from '@/components/ui/input/Input.vue';
 import Button from '@/components/ui/button/Button.vue';
 import Label from '@/components/ui/label/Label.vue';
 
-import { createTopic, TopicInfo } from '@/lib/kafka';
+import { createTopic, deleteTopic as adminDeleteTopic, TopicInfo } from '@/lib/kafka';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { TrashIcon } from 'lucide-vue-next';
+import { useToast } from '@/components/ui/toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const props = defineProps<{ topics: TopicInfo[], error: string }>();
+const {toast} = useToast();
 const newTopicName = ref<string>();
 const newTopicPartitions = ref(3);
 const onEvent = defineEmits(['refresh']);
@@ -43,6 +47,15 @@ const createNewTopic = async () => {
 	newTopicPartitions.value = 3;
 	onEvent("refresh");
 	isNewTopicDialogOpen.value = false;
+}
+
+const deleteTopic = (topic: string) => {
+	adminDeleteTopic(topic)
+		.then((deletedTopic) => {
+			toast({title: "Success", description: `Topic '${deletedTopic}' deleted!`});
+			onEvent("refresh");
+		})
+		.catch(err => toast({title: "Error", description: err, variant: "destructive"}));
 }
 </script>
 <template>
@@ -108,15 +121,36 @@ const createNewTopic = async () => {
 					</p>
 				</CommandEmpty>
 				<CommandItem v-for="topic of topics" :key="topic.name"
-					class="-mx-2 px-4 py-2 flex flex-col items-start hover:bg-neutral-100 dark:hover:bg-neutral-800 ui-checked:bg-primary ui-checked:text-white cursor-pointer"
+					class="-mx-2 px-4 py-2 flex space-x-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 ui-checked:bg-primary ui-checked:text-white cursor-pointer"
 					:value="topic">
-					<code class="text-xs leading-none font-bold" v-text="topic.name"></code>
-					<p class="text-opacity-25 font-medium text-xs uppercase">
-						Partitions: {{ topic.partitions.length }}, Replicas:
-						{{
-							topic.partitions.map((p) => p.replicas.length).reduce((a, b) => a + b, 0) / topic.partitions.length
-						}}
-					</p>
+					<div class="flex-1">
+						<code class="text-xs leading-none font-bold" v-text="topic.name"></code>
+						<p class="text-opacity-25 font-medium text-xs uppercase">
+							Partitions: {{ topic.partitions.length }}, Replicas:
+							{{
+								topic.partitions.map((p) => p.replicas.length).reduce((a, b) => a + b, 0) / topic.partitions.length
+							}}
+						</p>
+					</div>
+					<AlertDialog> 
+						<AlertDialogTrigger as-child>
+							<Button variant="outline" size="sm">
+								<TrashIcon class="block w-4 h-4"></TrashIcon>
+							</Button>
+						</AlertDialogTrigger>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+								<AlertDialogDescription>
+									This action cannot be undone. This will permanently delete the topic and its data.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>No way, Take me back!</AlertDialogCancel>
+								<AlertDialogAction @click="() => deleteTopic(topic.name)">Yes, Absolutely!</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
 				</CommandItem>
 			</CommandList>
 		</Command>
