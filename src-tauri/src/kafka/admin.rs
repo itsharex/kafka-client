@@ -1,5 +1,6 @@
 use std::{borrow::Borrow, ffi::CStr, ptr::slice_from_raw_parts, time::Duration};
 
+use itertools::all;
 use rdkafka::{
     admin::{AdminClient, AdminOptions, NewTopic, TopicReplication, TopicResult}, bindings::{rd_kafka_AdminOptions_new, rd_kafka_ListOffsets, rd_kafka_ListOffsetsResultInfo_topic_partition, rd_kafka_ListOffsets_result_infos, rd_kafka_event_ListOffsets_result, rd_kafka_event_destroy, rd_kafka_event_error, rd_kafka_event_error_string, rd_kafka_queue_destroy, rd_kafka_queue_new, rd_kafka_queue_poll}, client::{Client, DefaultClientContext}, config::FromClientConfig, consumer::{BaseConsumer, CommitMode, Consumer}, error::IsError, metadata::Metadata, topic_partition_list::TopicPartitionListElem, util::Timeout, ClientConfig, ClientContext, Offset, TopicPartitionList
 };
@@ -61,10 +62,12 @@ pub async fn create_consumer_group(
         .set("enable.auto.offset.store", "false")
     );
 
-    // TODO: check if group id exists already.
-    // if (check_group_with_topics(group, topics)) {
-    //      return Err(format!("{} group offsets already exists {}"))
-    // }
+    // TODO: Improve this validation by checking committed offsets
+    let all_groups = client.fetch_group_list(None, Timeout::After(Duration::from_secs(5))).map_err(|err| err.to_string())?;
+    let group_already_exists = all_groups.groups().iter().any(|g_info| g_info.name() == group_id);
+    if group_already_exists {
+        return Err(format!("{} group offsets already exists", group_id));
+    }
 
 
     let offsets = get_topics_offsets(client.client(), topics, initial_offset.into(), Offset::End)?;
@@ -169,10 +172,10 @@ pub unsafe fn get_topic_partition_offsets<C: ClientContext>(client: &Client<C>, 
             rdkafka::Offset::Offset(top_part.offset),
         );
         if let Err(err) = res {
-            eprintln!("Error setting offset: {:#?}", err);
+            eprintln!("Error setting offset '{}': {:#?}", top_part.offset, err);
         }
     }
-
+    
     rd_kafka_event_destroy(event);
     rd_kafka_queue_destroy(q);
     Ok(new_tpl)
