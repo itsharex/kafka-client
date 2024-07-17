@@ -20,6 +20,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_current_cluster,
             commands::get_topics,
+            commands::fetch_topic_configs,
             commands::consume_topic_by_timestamp,
             commands::create_topic,
             commands::delete_topic,

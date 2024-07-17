@@ -4,7 +4,6 @@ use rdkafka::{
     consumer::{Consumer, StreamConsumer}, groups::{GroupInfo,  GroupMemberInfo}, message::{Headers, OwnedMessage}, util::Timeout, ClientConfig, Message, Offset, TopicPartitionList
 };
 use serde::{Deserialize, Serialize};
-use tauri::http::header;
 use std::{collections::HashMap, io::Cursor, time::Duration};
 use byteorder::ReadBytesExt;
 

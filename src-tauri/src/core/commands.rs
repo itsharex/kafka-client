@@ -6,7 +6,7 @@ use tauri::{Emitter,  State};
 
 use crate::core::config::{AppConfiguration, ClusterConfig};
 
-use crate::kafka::admin;
+use crate::kafka::admin::{self, get_topic_configs, ConfigProperty};
 use crate::kafka::consumer::{ConsumerGroup, ConsumerGroupOffsetDescription, KafkaConsumer, MessageEnvelope};
 use crate::kafka::metadata::ClusterMetadata;
 
@@ -26,6 +26,18 @@ pub fn get_topics(app_config: State<AppConfiguration>) -> Result<ClusterMetadata
             .bootstrap_servers,
     )
     .get_metadata()
+}
+
+#[tauri::command(async)]
+pub async fn fetch_topic_configs(app_config: State<'_, AppConfiguration>, topic: &str) -> Result<Vec<ConfigProperty>, String> {
+    let bootstrap_servers = app_config
+    .config
+    .lock()
+    .unwrap()
+    .default_cluster_config()
+    .bootstrap_servers;
+
+    admin::get_topic_configs(bootstrap_servers, topic).await
 }
 
 #[tauri::command(async)]

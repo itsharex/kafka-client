@@ -1,7 +1,9 @@
-use std::{borrow::Borrow, ffi::CStr, fmt::format, ptr::slice_from_raw_parts, time::Duration};
+use std::{borrow::Borrow, ffi::CStr, ptr::slice_from_raw_parts, time::Duration};
+use itertools::Itertools;
 use rdkafka::{
-    admin::{AdminClient, AdminOptions, NewTopic, TopicReplication, TopicResult}, bindings::{rd_kafka_AdminOptions_new, rd_kafka_ListOffsets, rd_kafka_ListOffsetsResultInfo_topic_partition, rd_kafka_ListOffsets_result_infos, rd_kafka_event_ListOffsets_result, rd_kafka_event_destroy, rd_kafka_event_error, rd_kafka_event_error_string, rd_kafka_queue_destroy, rd_kafka_queue_new, rd_kafka_queue_poll}, client::{Client, DefaultClientContext}, config::FromClientConfig, consumer::{BaseConsumer, CommitMode, Consumer}, error::IsError, metadata::Metadata, topic_partition_list::TopicPartitionListElem, util::Timeout, ClientConfig, ClientContext, Offset, TopicPartitionList
+    admin::{AdminClient, AdminOptions, ConfigEntry, ConfigSource as KafkaConfigSource, NewTopic, ResourceSpecifier, TopicReplication, TopicResult}, bindings::{rd_kafka_AdminOptions_new, rd_kafka_ListOffsets, rd_kafka_ListOffsetsResultInfo_topic_partition, rd_kafka_ListOffsets_result_infos, rd_kafka_event_ListOffsets_result, rd_kafka_event_destroy, rd_kafka_event_error, rd_kafka_event_error_string, rd_kafka_queue_destroy, rd_kafka_queue_new, rd_kafka_queue_poll}, client::{Client, DefaultClientContext}, config::FromClientConfig, consumer::{BaseConsumer, CommitMode, Consumer}, error::IsError, metadata::Metadata, topic_partition_list::TopicPartitionListElem, util::Timeout, ClientConfig, ClientContext, Offset, TopicPartitionList
 };
+use serde::{Deserialize, Serialize};
 
 use crate::core::commands::GroupOffset;
 
@@ -49,6 +51,72 @@ pub async fn create_topic(
     return out.clone();
 }
 
+pub async fn get_topic_configs(bootstrap_servers: Vec<String>, topic: &str) -> Result<Vec<ConfigProperty>, String> {
+    let admin = create_admin_client(bootstrap_servers, ClientConfig::default());
+    let mut results = admin.describe_configs(&[ResourceSpecifier::Topic(topic)], &AdminOptions::default())
+    .await
+    .map_err(|err| err.to_string())?;
+
+    let first_result = results.pop().unwrap();
+    
+    first_result.map_err(|err| err.to_string())
+        .map(|item| item.entries.iter()
+            .map(|conf| ConfigProperty::from(conf))
+            .collect_vec()
+        )
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all="camelCase")]
+pub struct ConfigProperty {
+    /// The name of the configuration parameter.
+    pub name: String,
+    /// The value of the configuration parameter.
+    pub value: Option<String>,
+    /// The source of the configuration parameter.
+    pub source: ConfigSource,
+    /// Whether the configuration parameter is read only.
+    pub is_read_only: bool,
+    /// Whether the configuration parameter currently has the default value.
+    pub is_default: bool,
+    /// Whether the configuration parameter contains sensitive data.
+    pub is_sensitive: bool,
+}
+impl From<&ConfigEntry> for ConfigProperty {
+    fn from(value: &ConfigEntry) -> Self {
+        Self {
+            name: value.name.to_owned(),
+            value: value.value.to_owned(),
+            source: ConfigSource::from(&value.source),
+            is_read_only: value.is_read_only,
+            is_default: value.is_default,
+            is_sensitive: value.is_sensitive,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum ConfigSource {
+    Unknown,
+    Default,
+    DynamicTopic,
+    DynamicBroker,
+    DynamicDefaultBroker,
+    StaticBroker,
+} 
+impl From<&KafkaConfigSource> for ConfigSource {
+    fn from(value: &KafkaConfigSource) -> Self {
+        match value {
+            KafkaConfigSource::Unknown => Self::Unknown,
+            KafkaConfigSource::Default => Self::Default,
+            KafkaConfigSource::DynamicTopic => Self::DynamicTopic,
+            KafkaConfigSource::DynamicBroker => Self::DynamicBroker,
+            KafkaConfigSource::DynamicDefaultBroker => Self::DynamicDefaultBroker,
+            KafkaConfigSource::StaticBroker => Self::StaticBroker,
+        }
+    }
+}
+  
 pub async fn delete_topic(bootstrap_servers: Vec<String>, topic: &str) -> Result<String, String> {
     // TODO: make sure topic is not in use by any consumer group assignments
     // if topic_in_use {

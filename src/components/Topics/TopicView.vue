@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { BrokerInfo, ClusterMetadata, PartitionInfo, TopicInfo } from "@/lib/kafka";
-import { computed } from "vue";
+import { BrokerInfo, ClusterMetadata, ConfigEntry, PartitionInfo, TopicInfo, getTopicConfigs } from "@/lib/kafka";
+import { computed, ref, watchEffect } from "vue";
 import {Badge} from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -25,6 +25,22 @@ function getBrokerLabel(brokerId: number): String {
   return idString in brokerIdNameMap.value ? `#${idString} - ${brokerIdNameMap.value[idString].host}` : `#${idString}`;
 }
 
+const configLoading = ref(false);
+const topicConfigs = ref<ConfigEntry[]>([]);
+const onlyNonDefaultConfigs = computed(() => topicConfigs.value.filter(item => !item.isDefault && item.source!="Default"))
+watchEffect(async () => {
+  if (props.topic) {
+    try {
+      configLoading.value = true;
+      topicConfigs.value = await getTopicConfigs(props.topic.name);
+    } catch(err) {
+      console.error(err)
+    } finally {
+      configLoading.value = false;
+    }
+  }
+})
+
 </script>
 
 <template>
@@ -36,6 +52,15 @@ function getBrokerLabel(brokerId: number): String {
   </header>
 
   <main class="p-4">
+    <div v-if="!configLoading && onlyNonDefaultConfigs.length > 0" class="-m-1 px-1 pt-1 mb-4 flex flex-wrap items-center">
+      <strong class="font-bold">configs:</strong> 
+      <code v-for="config in onlyNonDefaultConfigs" :key="config.name" class="m-1 px-2 py-1 text-xs rounded bg-muted font-mono">
+        <span v-text="config.name"></span>="<span v-text="config.value"></span>"
+      </code>
+    </div>
+    <p v-else-if="configLoading" class="mb-4"><strong class="font-bold">configs:</strong> Loading...</p>
+    <p v-else class="mb-4"><strong class="font-bold">configs:</strong>  No additional confiuration found for this topic.</p>
+    <h2 class="text-xl font-bold mb-2">Partitions</h2>
     <Table>
       <TableHeader>
         <TableRow>

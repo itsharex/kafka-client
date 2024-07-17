@@ -10,6 +10,19 @@ export function deleteTopic(topic: string): Promise<string> {
   return invoke("delete_topic", { topic });
 }
 
+export function getTopicConfigs(topic: string): Promise<ConfigEntry[]> {
+  return invoke<ConfigEntry[]>("fetch_topic_configs", { topic });
+}
+
+export type ConfigEntry = {
+  name: string;
+  value?: string;
+  isDefault: boolean;
+  isReadOnly: boolean;
+  isSensitive: boolean;
+  source: "Unknown" | "Default" | "DynamicTopic" | "DynamicBroker" | "StaticBroker" | "DynamicDefaultBroker";
+};
+
 // Topics & Broker Metadata
 export type PartitionInfo = {
   id: number;
