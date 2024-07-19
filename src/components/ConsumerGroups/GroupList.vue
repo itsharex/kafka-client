@@ -1,18 +1,17 @@
 <script setup lang="ts">
 import { Fzf } from 'fzf';
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { ArrowPathIcon, } from '@heroicons/vue/16/solid';
-
-import Input from '@/components/ui/input/Input.vue';
 import Button from '@/components/ui/button/Button.vue';
 
-import { ClusterMetadata, ConsumerGroup, GroupOffset, createConsumerGroup, getClusterMetadata } from '@/lib/kafka';
+import { ConsumerGroup, GroupOffset, createConsumerGroup, deleteConsumerGroup, getClusterMetadata } from '@/lib/kafka';
 import { useToast } from '@/components/ui/toast';
-import { PlusIcon } from 'lucide-vue-next';
+import { PlusIcon, TrashIcon } from 'lucide-vue-next';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import NewConsumerGroupForm from '@/components/ConsumerGroups/NewConsumerGroupForm.vue';
 import { Command, CommandEmpty, CommandItem, CommandList } from '@/components/ui/command';
 import CommandInput from '@/components/ui/command/CommandInput.vue';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const {toast} = useToast();
 const topicsList = ref<string[]>(["test-topic"]);
@@ -37,6 +36,13 @@ const filterGroupList = (searchTerm: string) =>
 		.find(searchTerm)
 		.sort((a, b) => b.score - a.score)
 		.map((e) => e.item);
+
+const deleteGroup = (group: string) => {
+	deleteConsumerGroup(group)
+		.then((g) => toast({title: "Success!", description: `Consumer group '${g}' deleted successfully!'`}))
+		.then(() => onEvent("refresh"))
+		.catch(err => toast({title: "Error!", variant: "destructive", description: err instanceof Error ? err.message : ""+err}))
+}
 
 const createNewConsumerGroup = (data: {groupId: string, topics: string[], offset: GroupOffset}) => {
   createConsumerGroup(data.groupId, data.topics, data.offset)
@@ -94,9 +100,27 @@ const createNewConsumerGroup = (data: {groupId: string, topics: string[], offset
 						</Button>
 					</p>
 				</CommandEmpty>
-				<CommandItem v-for="group of groups" :key="group.name" :value="group"
-				class="flex flex-col items-start">
-					<p v-text="`${group.name} (${group.members.length})`"></p>
+				<CommandItem v-for="group of groups" :key="group.name" :value="group" class="flex items-center space-x-2">
+					<p class="flex-1" v-text="`${group.name} (${group.members.length})`"></p>
+					<AlertDialog> 
+						<AlertDialogTrigger as-child>
+							<Button variant="outline" size="sm">
+								<TrashIcon class="block w-4 h-4"></TrashIcon>
+							</Button>
+						</AlertDialogTrigger>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+								<AlertDialogDescription>
+									This action cannot be undone. This will permanently delete all the committed topic offsets for this group.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>No way, Take me back!</AlertDialogCancel>
+								<AlertDialogAction @click="() => deleteGroup(group.name)">Yes, Absolutely!</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
 				</CommandItem>
 			</CommandList>
 		</Command>

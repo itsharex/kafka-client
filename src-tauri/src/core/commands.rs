@@ -6,7 +6,7 @@ use tauri::{Emitter,  State};
 
 use crate::core::config::{AppConfiguration, ClusterConfig};
 
-use crate::kafka::admin::{self, get_topic_configs, ConfigProperty};
+use crate::kafka::admin::{self, ConfigProperty};
 use crate::kafka::consumer::{ConsumerGroup, ConsumerGroupOffsetDescription, KafkaConsumer, MessageEnvelope};
 use crate::kafka::metadata::ClusterMetadata;
 
@@ -144,6 +144,19 @@ pub async fn create_group_offsets(app_config: State<'_, AppConfiguration>, group
         .default_cluster_config().bootstrap_servers;
 
     admin::create_consumer_group(servers, group_id, topics, initial_offset).await
+}
+
+
+#[tauri::command(async)]
+pub async fn delete_consumer_group(app_config: State<'_, AppConfiguration>, group: &str) -> Result<String, String> {
+    let bootstrap_servers = app_config
+        .config
+        .lock()
+        .unwrap()
+        .default_cluster_config()
+        .bootstrap_servers;
+
+    admin::delete_consumer_group(bootstrap_servers, group).await
 }
 
 #[tauri::command(async)]

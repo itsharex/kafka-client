@@ -176,6 +176,21 @@ pub async fn create_consumer_group(
     client.commit(&offsets, CommitMode::Sync)
         .map_err(|err| err.to_string())
 }
+pub async fn delete_consumer_group(bootstrap_servers: Vec<String>, group: &str) -> Result<String, String> {
+    // TODO: make sure there are no group assignments
+    // if active_members_present {
+    //   return Err(format!("Topic '{}' has partitions assigned to consumer groups"));
+    // }
+
+    let admin = create_admin_client(bootstrap_servers, ClientConfig::default());
+    let results = admin.delete_groups(&[group], &AdminOptions::default())
+    .await
+    .map_err(|err| err.to_string())?;
+
+    let result = results.first().unwrap().to_owned();
+        
+    result.map_err(|(err_str, err_code)| format!("[{}]: {}", err_code, err_str))
+}
 
 fn get_topics_offsets<C: ClientContext>(client: &Client<C>, topics: Vec<&str>, offset: Offset, fallback_offset: Offset) -> Result<TopicPartitionList, String> {
     // Fetch all topic/paritions with latest metadata.

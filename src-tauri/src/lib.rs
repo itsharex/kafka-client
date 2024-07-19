@@ -28,6 +28,7 @@ pub fn run() {
             commands::get_groups,
             commands::get_group_offsets,
             commands::create_group_offsets,
+            commands::delete_consumer_group,
         ])
         .run(ctx)
         .expect("error while running tauri application");

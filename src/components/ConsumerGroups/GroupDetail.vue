@@ -5,10 +5,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardHeader } from "@/components/ui/card";
 import CardContent from "@/components/ui/card/CardContent.vue";
 import { ref, watchEffect } from "vue";
+import { useToast } from "@/components/ui/toast";
 
 const props = defineProps<{
-  group?: ConsumerGroup 
+  group: ConsumerGroup 
 }>();
+
+const { toast } = useToast();
+const toastError = (error: unknown) => {
+  let msg = error instanceof Error ? error.message : error+""
+  toast({title: "Error!", description: msg, variant: "destructive", duration: 60000});
+}
 
 const committedOffsets = ref<TopicGroupOffsets[]>([]);
 watchEffect(async () => {
@@ -16,9 +23,8 @@ watchEffect(async () => {
     try {
       committedOffsets.value = [];
       committedOffsets.value = await getGroupOffsets(props.group.name);
-      console.log({committedOffsets: committedOffsets.value})
     } catch(err) {
-      console.error(err)
+      toastError(err);
     }
   }
 })
@@ -42,6 +48,7 @@ watchEffect(async () => {
   </header>
 
   <main class="p-4 space-y-6">
+    <!-- Member Assignments -->
     <Card>
       <CardHeader class="border-b">
         <h3 class="text-xl font-semibold flex items-center space-x-2">
@@ -74,6 +81,7 @@ watchEffect(async () => {
       </CardContent>
     </Card>
 
+    <!-- Group Offsets -->
     <Card>
       <CardHeader class="border-b">
         <h3 class="text-xl font-semibold flex items-center space-x-2">
@@ -82,8 +90,8 @@ watchEffect(async () => {
         </h3>
       </CardHeader>
       <CardContent class="p-4 space-y-4">
-        <div v-if="committedOffsets.length > 0" v-for="topicOffsets in committedOffsets" :key="topicOffsets.topic">
-          <h4 class="text-lg font-semibold" v-text="topicOffsets.topic"></h4>
+        <div v-if="committedOffsets.length > 0" v-for="groupOffsets in committedOffsets" :key="groupOffsets.topic">
+          <h4 class="text-lg font-semibold" v-text="groupOffsets.topic"></h4>
           <Table class="max-h-96c">
             <TableHeader>
               <TableRow>
@@ -95,7 +103,7 @@ watchEffect(async () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow v-for="partitionOffsets in topicOffsets.partitions" :key="topicOffsets.topic + partitionOffsets.partition">
+              <TableRow v-for="partitionOffsets in groupOffsets.partitions" :key="groupOffsets.topic + partitionOffsets.partition">
                 <TableCell v-text="partitionOffsets.partition"></TableCell>
                 <TableCell v-text="partitionOffsets.startOffset"></TableCell>
                 <TableCell v-text="partitionOffsets.endOffset"></TableCell>

@@ -96,3 +96,7 @@ export type ConsumerGroupMember = {
 export function getConsumerGroups(): Promise<ConsumerGroup[]> {
   return invoke<ConsumerGroup[]>("get_groups");
 }
+
+export function deleteConsumerGroup(group: string): Promise<string> {
+  return invoke("delete_consumer_group", { group });
+}
