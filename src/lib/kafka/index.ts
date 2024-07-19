@@ -14,6 +14,10 @@ export function getTopicConfigs(topic: string): Promise<ConfigEntry[]> {
   return invoke<ConfigEntry[]>("fetch_topic_configs", { topic });
 }
 
+export function alterTopicConfigs(topic: string, configs: Record<string, string>): Promise<void> {
+  return invoke("alter_topic_configs", { topic, configs });
+}
+
 export type ConfigEntry = {
   name: string;
   value?: string;

@@ -1,7 +1,13 @@
-use std::{borrow::Borrow, ffi::CStr, ptr::slice_from_raw_parts, time::Duration};
+use std::{borrow::Borrow, collections::HashMap, ffi::{CStr, CString}, ptr::slice_from_raw_parts, time::Duration};
 use itertools::Itertools;
 use rdkafka::{
-    admin::{AdminClient, AdminOptions, ConfigEntry, ConfigSource as KafkaConfigSource, NewTopic, ResourceSpecifier, TopicReplication, TopicResult}, bindings::{rd_kafka_AdminOptions_new, rd_kafka_ListOffsets, rd_kafka_ListOffsetsResultInfo_topic_partition, rd_kafka_ListOffsets_result_infos, rd_kafka_event_ListOffsets_result, rd_kafka_event_destroy, rd_kafka_event_error, rd_kafka_event_error_string, rd_kafka_queue_destroy, rd_kafka_queue_new, rd_kafka_queue_poll}, client::{Client, DefaultClientContext}, config::FromClientConfig, consumer::{BaseConsumer, CommitMode, Consumer}, error::IsError, metadata::Metadata, topic_partition_list::TopicPartitionListElem, util::Timeout, ClientConfig, ClientContext, Offset, TopicPartitionList
+    admin::{AdminClient, AdminOptions, AlterConfig, ConfigEntry, ConfigSource as KafkaConfigSource, NewTopic, ResourceSpecifier, TopicReplication, TopicResult}, 
+    bindings::{rd_kafka_AdminOptions_new, rd_kafka_ListOffsets, rd_kafka_ListOffsetsResultInfo_topic_partition, rd_kafka_ListOffsets_result_infos, rd_kafka_event_ListOffsets_result, rd_kafka_event_destroy, rd_kafka_event_error, rd_kafka_event_error_string, rd_kafka_queue_destroy, rd_kafka_queue_new, rd_kafka_queue_poll}, 
+    client::{Client, DefaultClientContext}, 
+    config::FromClientConfig, 
+    consumer::{BaseConsumer, CommitMode, Consumer}, 
+    error::IsError, topic_partition_list::TopicPartitionListElem,  types::RDKafkaErrorCode, 
+    util::Timeout,  ClientConfig, ClientContext, Offset, TopicPartitionList
 };
 use serde::{Deserialize, Serialize};
 
@@ -50,9 +56,21 @@ pub async fn create_topic(
         .expect("Could not get Result");
     return out.clone();
 }
+pub async fn alter_topic_configs(bootstrap_servers: Vec<String>, topic: &str, configs: HashMap<&str, &str>) -> Result<(), String> {
+    let admin = create_admin_client(bootstrap_servers, ClientConfig::default());
+    let alter_config = AlterConfig {
+        specifier: ResourceSpecifier::Topic(topic),
+        entries: configs
+    };
+    let alter_configs = vec![alter_config];
+    admin.alter_configs(&alter_configs, &AdminOptions::default()).await
+        .map(|_val| ())
+        .map_err(|err| err.to_string())
+}
+
 
 pub async fn get_topic_configs(bootstrap_servers: Vec<String>, topic: &str) -> Result<Vec<ConfigProperty>, String> {
-    let admin = create_admin_client(bootstrap_servers, ClientConfig::default());
+    let admin = create_admin_client(bootstrap_servers, ClientConfig::default());    
     let mut results = admin.describe_configs(&[ResourceSpecifier::Topic(topic)], &AdminOptions::default())
     .await
     .map_err(|err| err.to_string())?;

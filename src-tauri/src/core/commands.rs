@@ -41,6 +41,18 @@ pub async fn fetch_topic_configs(app_config: State<'_, AppConfiguration>, topic:
 }
 
 #[tauri::command(async)]
+pub async fn alter_topic_configs(app_config: State<'_, AppConfiguration>, topic: &str, configs: HashMap<&str, &str>) -> Result<(), String> {
+    let bootstrap_servers = app_config
+    .config
+    .lock()
+    .unwrap()
+    .default_cluster_config()
+    .bootstrap_servers;
+    println!("Topic: {}, configs: {:?}", topic, configs);
+    admin::alter_topic_configs(bootstrap_servers, topic, configs).await
+}
+
+#[tauri::command(async)]
 pub async fn delete_topic(app_config: State<'_, AppConfiguration>, topic: &str) -> Result<String, String> {
     let bootstrap_servers = app_config
         .config
