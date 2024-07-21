@@ -111,8 +111,12 @@ export type MessageEnvelope = {
   headers: Record<string, string>;
 };
 
-export type JsonMessageEnvelope = MessageEnvelope & {payloadJson: Record<string, unknown>|null};
+export type JsonMessageEnvelope = MessageEnvelope & { payloadJson: Record<string, unknown> | null };
 export function consumeFromTopicWithinTimeRange(topic: string, timeRange: [number, number]) {
   const [start, end] = timeRange;
-  return invoke<string>("consume_topic_by_timestamp", {  topic, start, end  });
+  return invoke<string>("consume_topic_by_timestamp", { topic, start, end });
+}
+
+export function stopConsumer(consumerId: string) {
+  return invoke<void>("stop_consumer", { consumerId });
 }

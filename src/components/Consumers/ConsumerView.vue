@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watchEffect } from "vue";
-import { JsonMessageEnvelope, MessageEnvelope, consumeFromTopicWithinTimeRange } from "@/lib/kafka";
+import { JsonMessageEnvelope, MessageEnvelope, consumeFromTopicWithinTimeRange, stopConsumer } from "@/lib/kafka";
 import { jsonText } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,16 @@ const cleanUpModal = () => {modalMessage.value = undefined;}
 const {toast} = useToast();
 
 const isConsuming = ref(false);
+const consumerId = ref<string>();
+const consumerSubscriptionCleanUp = ref<() => void>();
+const stop = async () => {
+  if (consumerId.value) {
+    await stopConsumer(consumerId.value);
+    consumerId.value = undefined;
+    consumerSubscriptionCleanUp.value && consumerSubscriptionCleanUp.value();
+    isConsuming.value = false;
+  }
+}
 function fetchMessage() {
   if (isConsuming.value) {
     return;
@@ -31,26 +41,36 @@ function fetchMessage() {
   const now = Date.now(); // ms epoch
   const duration = 24 * 60 * 60 * 1000 // 24hrs duration in ms
   isConsuming.value = true;
-  consumeFromTopicWithinTimeRange(props.topic, [now-duration, now])
+  consumerId.value = undefined;
+  consumeFromTopicWithinTimeRange(props.topic, [now-duration, now+(duration/4)])
     .then(async (event_channel) => {
-      messages.value = [];
-      console.log({event_channel});
-      const unlisten = await listen<MessageEnvelope|null>(event_channel, (evt) => {
-        console.log("Listened", {event_channel}, {evt});
-        if (!evt.payload) { // Tombstone Payload
-          unlisten();
-          isConsuming.value = false;
-          return;
-        }
-        messages.value.push({...evt.payload, payloadJson: jsonText(evt.payload.payload)});
-      });
-      console.log("listener registered");
+      consumerId.value = event_channel;
     })
     .catch((err) => {
       toast({title: "Error", description: ""+err, variant:"destructive"});
       isConsuming.value = false;
     });
 }
+
+watchEffect(async () => {
+  if (consumerId.value) { // subscribe on obtaining the consumerId
+    messages.value = [];
+    const unlisten = await listen<MessageEnvelope|null>(consumerId.value, (evt) => {
+      console.log("Listened", {evt});
+      if (!evt.payload) { // Tombstone Payload
+        unlisten();
+        isConsuming.value = false;
+        return;
+      }
+      messages.value.push({...evt.payload, payloadJson: jsonText(evt.payload.payload)});
+    });
+    consumerSubscriptionCleanUp.value = () => {
+      unlisten();
+      isConsuming.value = false;
+    }
+    return consumerSubscriptionCleanUp.value;
+  }
+});
 
 watchEffect(() => {
   if (props.topic) {
@@ -67,9 +87,12 @@ watchEffect(() => {
       <h2 class="text-xl font-bold mb-2 flex items-center space-x-2">
         <span v-text="topic"></span>
       </h2>
-      <p>Consumer will start consuming from 12hrs ago till now.</p>
+      <p>Consumer will start consuming from 24hrs ago till now and until 6hrs from now.</p>
     </div>
     <Button :disabled="isConsuming" @click="() => fetchMessage()">Start Consuming</Button>
+    <Button v-if="isConsuming" @click="stop">
+      Stop
+    </Button>
   </header>
 
   <main class="p-4">

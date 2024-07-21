@@ -161,39 +161,60 @@ pub async fn delete_consumer_group(app_config: State<'_, ApplicationState>, grou
     admin::delete_consumer_group(bootstrap_servers, group).await
 }
 
+#[tauri::command]
+pub async fn stop_consumer(state: State<'_, ApplicationState>, consumer_id: String) -> Result<(), String> {
+    let cancel = {
+        let map = state.consumers.lock().map_err(|err| err.to_string())?;
+        let cancel = map.get(&consumer_id).cloned().ok_or(format!("there is no such consumer running on channel: '{}'", consumer_id))?;
+        cancel
+    };
+
+    let _ = cancel.send(()).await.map_err(|err| err.to_string())?;
+    
+    state.consumers.lock()
+        .and_then(|mut map| Ok(map.remove(&consumer_id)))
+        .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
 #[tauri::command(async)]
 pub async fn consume_topic_by_timestamp(
     app_handle: AppHandle,
-    app_config: State<'_, ApplicationState>,
+    app_state: State<'_, ApplicationState>,
     topic: &str,
     start: i64,
     end: i64,
 ) -> Result<String, String> {
-    let mut stream = KafkaConsumer::connect(
-        app_config
-            .config
-            .lock()
-            .unwrap()
-            .default_cluster_config()
-            .bootstrap_servers,
-    );
+    let bootstrap_servers = app_state.config.lock().unwrap().default_cluster_config().bootstrap_servers;
+    let mut stream = KafkaConsumer::connect(bootstrap_servers);
 
     stream.assign_offsets_by_timestamp(topic, start).await?;
     let event_name = "new_message";
-    println!("Spawning Thread to consume messages");
-    std::thread::spawn( move || {
-        loop {
-            let message = block_on(stream.get_next_message()).expect("Could not get next message");
-            
-            if message.timestamp > end {
-                println!("Message with a timestamp later than end [{}]: {:?}", end, message);
-                app_handle.emit::<Option<MessageEnvelope<String, String>>>(event_name, None).expect("Failed to emit event");
-                break;
-            }
+    let (sender, mut receiver) = mpsc::channel(1);
+    app_state.consumers.lock().unwrap().insert(event_name.to_string(), sender);
 
-            println!("Emitted message on channel `{}`: {:?}", event_name, message);
-            app_handle.emit::<Option<MessageEnvelope<String, String>>>(event_name, Some(message))
-                .expect("Failed to emit event");
+    println!("Spawning Thread to consume messages");
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = receiver.recv() => {
+                    app_handle.emit::<Option<MessageEnvelope<String, String>>>(event_name, None).expect("Failed to emit event");
+                    break;
+                },
+                result = stream.get_next_message().fuse() => {
+                    let message = result.expect("Could not get next message");
+                    
+                    if message.timestamp > end {
+                        println!("Message with a timestamp later than end [{}]: {:?}", end, message);
+                        app_handle.emit::<Option<MessageEnvelope<String, String>>>(event_name, None).expect("Failed to emit event");
+                        break;
+                    }
+    
+                    println!("Emitted message on channel `{}`: {:?}", event_name, message);
+                    app_handle.emit::<Option<MessageEnvelope<String, String>>>(event_name, Some(message))
+                        .expect("Failed to emit event");
+                }
+            }
         }
     });
 
