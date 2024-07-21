@@ -15,7 +15,7 @@ pub struct TopicPartitionOffset {
     offsets: Vec<(i32, i64)>
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MessageEnvelope<K, P> {
     pub key: K,
     pub partition: i32,
@@ -201,12 +201,11 @@ impl KafkaConsumer {
             .map_err(|err| err.to_string())
     }
 
-    pub async fn consume_by_timestamps(
+    pub async fn assign_offsets_by_timestamp(
         &mut self,
         topic: &str,
-        start: i64,
-        _end: i64,
-    ) -> Result<MessageEnvelope<String, String>, String> {
+        timestamp: i64,
+    ) -> Result<(), String> {
         let mut start_offset_timestamp_list = TopicPartitionList::new();
         let topic_partitions = self
             .get_metadata()
@@ -219,28 +218,23 @@ impl KafkaConsumer {
                     }
                 })
             })
-            .expect("failed to fetch metadata");
+            .and_then(|top| top.ok_or_else(|| "Invalid topic name".to_owned()) )
+            .map_err(|err| err.to_string())?;
 
-        if matches!(topic_partitions, None) {
-            return Err("Invalid topic name".to_owned());
-        }
-
-        for partition in topic_partitions.unwrap() {
+        for partition in topic_partitions {
             start_offset_timestamp_list
-                .add_partition_offset(topic, partition.id, rdkafka::Offset::Offset(start))
-                .unwrap();
+                .add_partition_offset(topic, partition.id, rdkafka::Offset::Offset(timestamp))
+                .map_err(|err| err.to_string())?;
         }
 
         let start_offsets_list = self
             .consumer
             .offsets_for_times(start_offset_timestamp_list, Duration::from_secs(2))
-            .unwrap();
+            .map_err(|err| err.to_string())?;
 
         self.consumer
             .assign(&start_offsets_list)
-            .expect("Failed to assign the Offsets!");
-
-        self.get_next_message().await
+            .map_err(|err| err.to_string())
     }
 
     pub async fn get_next_message(&self) -> Result<MessageEnvelope<String, String>, String> {

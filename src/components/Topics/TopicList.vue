@@ -18,8 +18,8 @@ import Label from '@/components/ui/label/Label.vue';
 
 import { createTopic, deleteTopic as adminDeleteTopic, TopicInfo } from '@/lib/kafka';
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { TrashIcon } from 'lucide-vue-next';
 import { useToast } from '@/components/ui/toast';
+import { TrashIcon } from 'lucide-vue-next';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const props = defineProps<{ topics: TopicInfo[], error: string }>();

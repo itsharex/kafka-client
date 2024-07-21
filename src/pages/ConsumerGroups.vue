@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import {  onMounted, ref } from "vue";
-import { ConsumerGroup, GroupOffset, createConsumerGroup, getConsumerGroups } from "@/lib/kafka";
+import { ConsumerGroup, getConsumerGroups } from "@/lib/kafka";
 import GroupList from "@/components/ConsumerGroups/GroupList.vue";
 import GroupDetail from "@/components/ConsumerGroups/GroupDetail.vue";
-import { ToastProvider, Toaster, useToast } from "@/components/ui/toast";
 const loading = ref(false);
 const error = ref<string>("");
 

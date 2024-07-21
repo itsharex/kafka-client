@@ -5,7 +5,7 @@ mod kafka;
 
 use crate::core::{
     commands,
-    config::AppConfiguration,
+    config::ApplicationState,
 };
 
 #[cfg_attr(mobile, tauri::mobile_enrty_point)]
@@ -16,7 +16,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_theme::init(ctx.config_mut()))
         .plugin(tauri_plugin_shell::init())
-        .manage(AppConfiguration::load())
+        .manage(ApplicationState::load())
         .invoke_handler(tauri::generate_handler![
             commands::get_current_cluster,
             commands::get_topics,

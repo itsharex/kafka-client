@@ -113,7 +113,7 @@ const createNewConsumerGroup = (data: {groupId: string, topics: string[], offset
 								<AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
 								<AlertDialogDescription>
 									This action cannot be undone. This will permanently delete all the committed topic offsets for this group.
-								</AlertDialogDescription>
+										</AlertDialogDescription>
 							</AlertDialogHeader>
 							<AlertDialogFooter>
 								<AlertDialogCancel>No way, Take me back!</AlertDialogCancel>

@@ -36,6 +36,9 @@ onMounted(() => console.log("<Navbar />"))
             <MenubarItem>
               <RouterLink to="/consumer-groups">Groups View</RouterLink>
             </MenubarItem>
+            <MenubarItem>
+              <RouterLink to="/consumer">Consumer</RouterLink>
+            </MenubarItem>
             <DialogTrigger as-child>
               <MenubarItem>
                 About App

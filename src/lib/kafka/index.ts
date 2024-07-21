@@ -100,3 +100,19 @@ export function getConsumerGroups(): Promise<ConsumerGroup[]> {
 export function deleteConsumerGroup(group: string): Promise<string> {
   return invoke("delete_consumer_group", { group });
 }
+
+// Consumers
+export type MessageEnvelope = {
+  key: string;
+  offset: number;
+  partition: number;
+  timestamp: number;
+  payload: string;
+  headers: Record<string, string>;
+};
+
+export type JsonMessageEnvelope = MessageEnvelope & {payloadJson: Record<string, unknown>|null};
+export function consumeFromTopicWithinTimeRange(topic: string, timeRange: [number, number]) {
+  const [start, end] = timeRange;
+  return invoke<string>("consume_topic_by_timestamp", {  topic, start, end  });
+}

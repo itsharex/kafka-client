@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { BrokerInfo, ClusterMetadata, ConfigEntry, PartitionInfo, TopicInfo, alterTopicConfigs, getTopicConfigs } from "@/lib/kafka";
 import { computed, ref, watchEffect } from "vue";
-import {Badge} from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { PlusIcon } from "lucide-vue-next";
 import { allTopicConfigs } from "@/lib/kafka/topicConfigs";
+import {Badge} from "@/components/ui/badge";
 import { DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTrigger, DialogFooter, Dialog } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

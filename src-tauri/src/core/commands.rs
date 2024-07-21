@@ -1,22 +1,24 @@
 use std::collections::HashMap;
+use futures::FutureExt;
 use rdkafka::Offset;
 use serde::{Deserialize, Serialize};
 use tauri::async_runtime::block_on;
-use tauri::{Emitter,  State};
+use tauri::{AppHandle, Emitter, State};
+use tokio::sync::{mpsc, oneshot};
 
-use crate::core::config::{AppConfiguration, ClusterConfig};
+use crate::core::config::{ApplicationState, ClusterConfig};
 
 use crate::kafka::admin::{self, ConfigProperty};
 use crate::kafka::consumer::{ConsumerGroup, ConsumerGroupOffsetDescription, KafkaConsumer, MessageEnvelope};
 use crate::kafka::metadata::ClusterMetadata;
 
 #[tauri::command]
-pub fn get_current_cluster(app_config: State<AppConfiguration>) -> ClusterConfig {
+pub fn get_current_cluster(app_config: State<ApplicationState>) -> ClusterConfig {
     app_config.config.lock().unwrap().default_cluster_config()
 }
 
 #[tauri::command(async)]
-pub fn get_topics(app_config: State<AppConfiguration>) -> Result<ClusterMetadata, String> {
+pub fn get_topics(app_config: State<ApplicationState>) -> Result<ClusterMetadata, String> {
     KafkaConsumer::connect(
         app_config
             .config
@@ -29,7 +31,7 @@ pub fn get_topics(app_config: State<AppConfiguration>) -> Result<ClusterMetadata
 }
 
 #[tauri::command(async)]
-pub async fn fetch_topic_configs(app_config: State<'_, AppConfiguration>, topic: &str) -> Result<Vec<ConfigProperty>, String> {
+pub async fn fetch_topic_configs(app_config: State<'_, ApplicationState>, topic: &str) -> Result<Vec<ConfigProperty>, String> {
     let bootstrap_servers = app_config
     .config
     .lock()
@@ -41,7 +43,7 @@ pub async fn fetch_topic_configs(app_config: State<'_, AppConfiguration>, topic:
 }
 
 #[tauri::command(async)]
-pub async fn alter_topic_configs(app_config: State<'_, AppConfiguration>, topic: &str, configs: HashMap<&str, &str>) -> Result<(), String> {
+pub async fn alter_topic_configs(app_config: State<'_, ApplicationState>, topic: &str, configs: HashMap<&str, &str>) -> Result<(), String> {
     let bootstrap_servers = app_config
     .config
     .lock()
@@ -53,7 +55,7 @@ pub async fn alter_topic_configs(app_config: State<'_, AppConfiguration>, topic:
 }
 
 #[tauri::command(async)]
-pub async fn delete_topic(app_config: State<'_, AppConfiguration>, topic: &str) -> Result<String, String> {
+pub async fn delete_topic(app_config: State<'_, ApplicationState>, topic: &str) -> Result<String, String> {
     let bootstrap_servers = app_config
         .config
         .lock()
@@ -65,7 +67,7 @@ pub async fn delete_topic(app_config: State<'_, AppConfiguration>, topic: &str) 
 }
 
 #[tauri::command(async)]
-pub fn get_group_offsets(app_config: State<AppConfiguration>, group_name: String) -> Result<Vec<ConsumerGroupOffsetDescription>, String> {
+pub fn get_group_offsets(app_config: State<ApplicationState>, group_name: String) -> Result<Vec<ConsumerGroupOffsetDescription>, String> {
     let servers = app_config.config.lock().unwrap()
         .default_cluster_config().bootstrap_servers;
     
@@ -76,7 +78,7 @@ pub fn get_group_offsets(app_config: State<AppConfiguration>, group_name: String
 }
 
 #[tauri::command(async)]
-pub fn get_groups(app_config: State<AppConfiguration>) -> Result<Vec<ConsumerGroup>, String> {
+pub fn get_groups(app_config: State<ApplicationState>) -> Result<Vec<ConsumerGroup>, String> {
     KafkaConsumer::connect(
         app_config
             .config
@@ -92,7 +94,7 @@ pub fn get_groups(app_config: State<AppConfiguration>) -> Result<Vec<ConsumerGro
 
 #[tauri::command(async)]
 pub async fn create_topic(
-    app_config: State<'_, AppConfiguration>,
+    app_config: State<'_, ApplicationState>,
     topic: &str,
     partitions: i32,
     config: Vec<(&str, &str)>
@@ -139,7 +141,7 @@ impl Into<Offset> for GroupOffset {
 
 
 #[tauri::command(async)]
-pub async fn create_group_offsets(app_config: State<'_, AppConfiguration>, group_id: &str, topics: Vec<&str>, initial_offset: GroupOffset) -> Result<(), String> {
+pub async fn create_group_offsets(app_config: State<'_, ApplicationState>, group_id: &str, topics: Vec<&str>, initial_offset: GroupOffset) -> Result<(), String> {
     let servers = app_config.config.lock().unwrap()
         .default_cluster_config().bootstrap_servers;
 
@@ -148,7 +150,7 @@ pub async fn create_group_offsets(app_config: State<'_, AppConfiguration>, group
 
 
 #[tauri::command(async)]
-pub async fn delete_consumer_group(app_config: State<'_, AppConfiguration>, group: &str) -> Result<String, String> {
+pub async fn delete_consumer_group(app_config: State<'_, ApplicationState>, group: &str) -> Result<String, String> {
     let bootstrap_servers = app_config
         .config
         .lock()
@@ -161,13 +163,12 @@ pub async fn delete_consumer_group(app_config: State<'_, AppConfiguration>, grou
 
 #[tauri::command(async)]
 pub async fn consume_topic_by_timestamp(
-    window: tauri::WebviewWindow,
-    app_config: State<'_, AppConfiguration>,
+    app_handle: AppHandle,
+    app_config: State<'_, ApplicationState>,
     topic: &str,
     start: i64,
     end: i64,
-) -> Result<MessageEnvelope<String, String>, String> {
-    println!("Consume started");
+) -> Result<String, String> {
     let mut stream = KafkaConsumer::connect(
         app_config
             .config
@@ -177,17 +178,24 @@ pub async fn consume_topic_by_timestamp(
             .bootstrap_servers,
     );
 
-    let result = stream.consume_by_timestamps(topic, start, end).await;
-
+    stream.assign_offsets_by_timestamp(topic, start).await?;
+    let event_name = "new_message";
     println!("Spawning Thread to consume messages");
-    std::thread::spawn(move || loop {
-        let message = block_on(stream.get_next_message()).expect("Could not get next message");
-        if message.timestamp > end {
-            break;
+    std::thread::spawn( move || {
+        loop {
+            let message = block_on(stream.get_next_message()).expect("Could not get next message");
+            
+            if message.timestamp > end {
+                println!("Message with a timestamp later than end [{}]: {:?}", end, message);
+                app_handle.emit::<Option<MessageEnvelope<String, String>>>(event_name, None).expect("Failed to emit event");
+                break;
+            }
+
+            println!("Emitted message on channel `{}`: {:?}", event_name, message);
+            app_handle.emit::<Option<MessageEnvelope<String, String>>>(event_name, Some(message))
+                .expect("Failed to emit event");
         }
-        window.emit("new_message", message)
-            .expect("Failed to emit event");
     });
 
-    result
+    Ok(event_name.to_owned())
 }

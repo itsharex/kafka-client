@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ConsumerGroup, TopicGroupOffsets, getGroupOffsets } from "@/lib/kafka";
-import {Badge} from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader } from "@/components/ui/card";
 import CardContent from "@/components/ui/card/CardContent.vue";
-import { ref, watchEffect } from "vue";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
+import { ConsumerGroup, TopicGroupOffsets, getGroupOffsets } from "@/lib/kafka";
+import { ref, watchEffect } from "vue";
 
 const props = defineProps<{
   group: ConsumerGroup 

@@ -74,13 +74,13 @@ impl Config {
     }
 }
 
-pub struct AppConfiguration {
+pub struct ApplicationState {
     pub config: Mutex<Config>,
 }
 
-impl AppConfiguration {
+impl ApplicationState {
     pub fn load() -> Self {
-        AppConfiguration {
+        ApplicationState {
             config: Mutex::new(Config::load())
         }
     }
