@@ -12,9 +12,15 @@ use crate::core::{
 pub fn run() {
 
     let mut ctx = tauri::generate_context!();
-    tauri::Builder::default()
-        .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_theme::init(ctx.config_mut()))
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_os::init());
+        
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(tauri_plugin_devtools::init());
+    }
+        
+    builder.plugin(tauri_plugin_theme::init(ctx.config_mut()))
         .plugin(tauri_plugin_shell::init())
         .manage(ApplicationState::load())
         .invoke_handler(tauri::generate_handler![

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watchEffect } from "vue";
+import { ref, watch, watchEffect } from "vue";
 import { JsonMessageEnvelope, MessageEnvelope, consumeFromTopicWithinTimeRange, stopConsumer } from "@/lib/kafka";
 import { jsonText } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -72,11 +72,14 @@ watchEffect(async () => {
   }
 });
 
-watchEffect(() => {
-  if (props.topic) {
+watch(() => props.topic, (newTopic, oldTopic) => {
+  if (newTopic) {
     // topic changed, cleanup.
     messages.value = [];
-    isConsuming.value = false;
+  }
+
+  if (oldTopic!=newTopic) {
+    (isConsuming.value || consumerId.value !=null) && stop();
   }
 });
 </script>
@@ -103,7 +106,8 @@ watchEffect(() => {
             <span v-text="key" class="px-2 py-1 text-xs bg-neutral-300 rounded-full"></span>
           </li>
         </ul>
-        <pre @click="() => openModal(currentMessage)" class="truncate mb-2"><code v-text="currentMessage.payload"></code></pre>
+        <pre @click="() => openModal(currentMessage)"
+          class="truncate mb-2"><code v-text="currentMessage.payload"></code></pre>
         <footer class="-mx-2 -mb-2 px-2 py-1 border-t border-neutral-300 text-xs flex justify-between">
           <div class="space-x-3 flex items-baseline">
             <p>Key: "{{ currentMessage.key }}"</p>
@@ -126,7 +130,8 @@ watchEffect(() => {
           <DialogDescription>Received on {{modalMessage?.partition}}@{{ modalMessage?.offset }}</DialogDescription>
         </DialogHeader>
         <div class="mt-2 p-3 rounded-lg bg-neutral-100 w-full overflow-auto">
-          <pre class="text-sm text-gray-500"><code v-text="JSON.stringify(modalMessage?.payloadJson, null, 2)"></code></pre>
+          <pre
+            class="text-sm text-gray-500"><code v-text="JSON.stringify(modalMessage?.payloadJson, null, 2)"></code></pre>
         </div>
       </DialogContent>
     </Dialog>
