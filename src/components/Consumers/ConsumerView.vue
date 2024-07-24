@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { ref, watch, watchEffect } from "vue";
-import { JsonMessageEnvelope, MessageEnvelope, consumeFromTopicWithinTimeRange, stopConsumer } from "@/lib/kafka";
-import { jsonText } from "@/lib/utils";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { GroupOffset, JsonMessageEnvelope, MessageEnvelope, consumeFromTopicWithinTimeRange, stopConsumer } from "@/lib/kafka";
+import { cn, getLang, jsonText } from "@/lib/utils";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { listen } from "@tauri-apps/api/event";
+import { Label } from "../ui/label";
+import { type DateValue, today, DateFormatter, getLocalTimeZone } from "@internationalized/date";
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CalendarIcon } from "lucide-vue-next";
+import { Calendar } from "../ui/calendar";
 
 const props = defineProps<{
   topic: string;
@@ -34,6 +40,13 @@ const stop = async () => {
     isConsuming.value = false;
   }
 }
+
+const df = new DateFormatter(getLang(), {
+  dateStyle: 'long',
+});
+const offsetType = ref<GroupOffset["type"]>("End");
+const offsetTimestamp = ref<DateValue>(today(getLocalTimeZone()));
+
 function fetchMessage() {
   if (isConsuming.value) {
     return;
@@ -92,7 +105,63 @@ watch(() => props.topic, (newTopic, oldTopic) => {
       </h2>
       <p>Consumer will start consuming from 24hrs ago till now and until 6hrs from now.</p>
     </div>
-    <Button :disabled="isConsuming" @click="() => fetchMessage()">Start Consuming</Button>
+    <Dialog>
+      <DialogTrigger as-child>
+        <Button :disabled="isConsuming">Consume</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Start New Consumer</DialogTitle>
+          <DialogDescription>Choose confiugration to start consuming from the topic `{{ props.topic }}`
+          </DialogDescription>
+        </DialogHeader>
+        <form id="consumer-creation-form" @submit.prevent="() => fetchMessage()">
+          <div class="grid gap-2">
+            <Label for="group_id">
+              Offset
+            </Label>
+            <div class="flex space-x-2">
+              <Select v-model:model-value="offsetType">
+                <SelectTrigger class="w-[180px]">
+                  <SelectValue placeholder="Choose Offset Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="End">
+                      Latest
+                    </SelectItem>
+                    <SelectItem value="Beginning">
+                      Earliest
+                    </SelectItem>
+                    <SelectItem value="Offset">
+                      By Timestamp
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <Popover v-if="offsetType === 'Offset'">
+                <PopoverTrigger as-child>
+                  <Button variant="outline" :class="cn(
+                      'w-[280px] justify-start text-left font-normal',
+                      !offsetTimestamp && 'text-muted-foreground',
+                    )">
+                    <CalendarIcon class="mr-2 h-4 w-4" />
+                    {{ offsetTimestamp ? df.format(offsetTimestamp.toDate(getLocalTimeZone())) : "Pick a date" }}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent class="w-auto p-0">
+                  <Calendar v-model:model-value="offsetTimestamp" initial-focus />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+        </form>
+        <DialogFooter>
+          <DialogClose>Cancel</DialogClose>
+          <Button form="consumer-creation-form" type="submit">Start</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Button v-if="isConsuming" @click="stop">
       Stop
     </Button>

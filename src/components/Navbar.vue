@@ -1,27 +1,26 @@
 <script lang="ts" setup>
-import { Globe, Mic } from 'lucide-vue-next'
 import { WindowTitlebar } from '@tauri-controls/vue'
-import { getCurrent } from '@tauri-apps/api/window'
 import MenuModeToggle from './MenuModeToggle.vue'
 import AboutDialog from './AboutDialog.vue'
 import {Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem, MenubarSeparator, MenubarShortcut, MenubarSub, MenubarSubTrigger, MenubarSubContent, MenubarCheckboxItem, MenubarLabel, MenubarRadioGroup, MenubarRadioItem} from './ui/menubar'
 import { Dialog, DialogTrigger } from './ui/dialog'
 import { Icons } from './Icons'
 import { onMounted } from 'vue'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 
 function closeWindow() {
-  const appWindow = getCurrent()
+  const appWindow = getCurrentWebviewWindow()
   appWindow.close()
 }
 onMounted(() => console.log("<Navbar />"))
 </script>
 
 <template>
-  <WindowTitlebar controls-order="platform" :window-controls-props="{ platform: 'gnome'}" >
+  <WindowTitlebar controls-order="platform" :window-controls-props="{ platform: 'gnome'}">
     <Menubar class="rounded-none border-b border-none pl-2 lg:pl-3">
       <MenubarMenu>
         <div class="inline-flex h-fit w-fit items-center text-cyan-600">
-          <Icons.kafka class="h-5"/>
+          <Icons.kafka class="h-5" />
         </div>
       </MenubarMenu>
       <MenubarMenu>
