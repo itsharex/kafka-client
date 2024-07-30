@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, io::Cursor, time::Duration};
 use byteorder::ReadBytesExt;
 
-use super::{admin::get_topic_partition_offsets, metadata::ClusterMetadata, util::read_str};
+use super::{admin::get_topic_partition_offsets, metadata::ClusterMetadata, util::{from_topic_partition_list_to_map, read_str, TopicOffsetsMap}};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct TopicPartitionOffset {
@@ -166,19 +166,19 @@ impl KafkaConsumer {
         tpl_end.set_all_offsets(Offset::End).unwrap();
         let end_offsets = unsafe {
             get_topic_partition_offsets(self.consumer.client(), &tpl_end)
-            .map(form_topic_partition_list_to_map)?
+            .map(from_topic_partition_list_to_map)?
         };
 
         let mut tpl_beginning = tpl_stored.clone();
         tpl_beginning.set_all_offsets(Offset::Beginning).unwrap();
         let start_offsets = unsafe {
             get_topic_partition_offsets(self.consumer.client(), &tpl_beginning)
-            .map(form_topic_partition_list_to_map)?
+            .map(from_topic_partition_list_to_map)?
         };
 
         let stored_offset =  self.consumer.committed_offsets(tpl_stored, Timeout::Never)
                             .map_err(|err| err.to_string())
-                            .map(form_topic_partition_list_to_map)?;
+                            .map(from_topic_partition_list_to_map)?;
 
         Ok(from_offset_map_tuple_to_description_vec(start_offsets, end_offsets, stored_offset))
     }
@@ -205,7 +205,7 @@ impl KafkaConsumer {
         &mut self,
         topic: &str,
         timestamp: i64,
-    ) -> Result<(), String> {
+    ) -> Result<TopicOffsetsMap, String> {
         let mut start_offset_timestamp_list = TopicPartitionList::new();
         let topic_partitions = self
             .get_metadata()
@@ -234,7 +234,9 @@ impl KafkaConsumer {
 
         self.consumer
             .assign(&start_offsets_list)
-            .map_err(|err| err.to_string())
+            .map_err(|err| err.to_string())?;
+
+        Ok(from_topic_partition_list_to_map(start_offsets_list))
     }
 
     pub async fn get_next_message(&self) -> Result<MessageEnvelope<String, String>, String> {
@@ -283,7 +285,6 @@ impl KafkaConsumer {
     }
 }
 
-type TopicOffsetsMap = HashMap<String, Vec<(i32, i64)>>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConsumerGroupOffsetDescription {
@@ -329,23 +330,4 @@ fn from_offset_map_tuple_to_description_vec(start_offsets_map: TopicOffsetsMap, 
             .unwrap()
     })
     .collect()
-}
-
-fn form_topic_partition_list_to_map(tpl: TopicPartitionList) -> TopicOffsetsMap {
-    let entry = tpl.to_topic_map().into_iter()
-        .filter_map(|((top, part), offset)| match offset {
-            Offset::Offset(val) => Some((top, part, val)),
-            _ => None
-        })
-        .collect::<Vec<(String, i32, i64)>>();
-
-    let mut out: HashMap<String, Vec<(i32, i64)>> = HashMap::new();
-    for (topic, partition, offset) in entry {
-        if out.contains_key(topic.as_str()) {
-            out.get_mut(topic.as_str()).unwrap().push((partition, offset));
-        } else {
-            out.insert(topic.to_string(), vec![(partition, offset)]);
-        }
-    }
-    out
 }

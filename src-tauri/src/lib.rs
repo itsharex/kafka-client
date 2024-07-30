@@ -28,6 +28,7 @@ pub fn run() {
             commands::get_topics,
             commands::fetch_topic_configs,
             commands::alter_topic_configs,
+            commands::get_all_active_consumers,
             commands::consume_topic_by_timestamp,
             commands::stop_consumer,
             commands::create_topic,

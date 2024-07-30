@@ -6,12 +6,12 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { listen } from "@tauri-apps/api/event";
 import { Label } from "../ui/label";
 import { type DateValue, today, DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon } from "lucide-vue-next";
 import { Calendar } from "../ui/calendar";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 const props = defineProps<{
   topic: string;
@@ -56,7 +56,8 @@ function fetchMessage() {
   isConsuming.value = true;
   consumerId.value = undefined;
   consumeFromTopicWithinTimeRange(props.topic, [now-duration, now+(duration/4)])
-    .then(async (event_channel) => {
+    .then(async ([event_channel, offsets]) => {
+      console.log("start from", {offsets});
       consumerId.value = event_channel;
     })
     .catch((err) => {
@@ -68,7 +69,7 @@ function fetchMessage() {
 watchEffect(async () => {
   if (consumerId.value) { // subscribe on obtaining the consumerId
     messages.value = [];
-    const unlisten = await listen<MessageEnvelope|null>(consumerId.value, (evt) => {
+    const unlisten = await getCurrentWebviewWindow().listen<MessageEnvelope|null>(consumerId.value, (evt) => {
       console.log("Listened", {evt});
       if (!evt.payload) { // Tombstone Payload
         unlisten();
@@ -77,6 +78,7 @@ watchEffect(async () => {
       }
       messages.value.push({...evt.payload, payloadJson: jsonText(evt.payload.payload)});
     });
+    // console.log("Subscribed at", new Date());
     consumerSubscriptionCleanUp.value = () => {
       unlisten();
       isConsuming.value = false;

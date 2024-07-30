@@ -1,16 +1,18 @@
 use std::collections::HashMap;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use futures::FutureExt;
 use rdkafka::Offset;
 use serde::{Deserialize, Serialize};
-use tauri::async_runtime::block_on;
 use tauri::{AppHandle, Emitter, State};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
+use tokio::time::sleep;
 
 use crate::core::config::{ApplicationState, ClusterConfig};
 
 use crate::kafka::admin::{self, ConfigProperty};
 use crate::kafka::consumer::{ConsumerGroup, ConsumerGroupOffsetDescription, KafkaConsumer, MessageEnvelope};
 use crate::kafka::metadata::ClusterMetadata;
+use crate::kafka::util::TopicOffsetsMap;
 
 #[tauri::command]
 pub fn get_current_cluster(app_config: State<ApplicationState>) -> ClusterConfig {
@@ -164,17 +166,24 @@ pub async fn delete_consumer_group(app_config: State<'_, ApplicationState>, grou
 #[tauri::command]
 pub async fn stop_consumer(state: State<'_, ApplicationState>, consumer_id: String) -> Result<(), String> {
     let cancel = {
-        let map = state.consumers.lock().map_err(|err| err.to_string())?;
+        let map = state.active_consumers.lock().map_err(|err| err.to_string())?;
         let cancel = map.get(&consumer_id).cloned().ok_or(format!("there is no such consumer running on channel: '{}'", consumer_id))?;
         cancel
     };
 
     let _ = cancel.send(()).await.map_err(|err| err.to_string())?;
     
-    state.consumers.lock()
+    state.active_consumers.lock()
         .and_then(|mut map| Ok(map.remove(&consumer_id)))
         .map_err(|err| err.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_all_active_consumers(app_state: State<ApplicationState>) -> Result<Vec<String>, String> {
+    let consumers: Vec<String> = app_state.active_consumers.lock().unwrap().keys().cloned().collect();
+
+    Ok(consumers)
 }
 
 #[tauri::command(async)]
@@ -184,21 +193,28 @@ pub async fn consume_topic_by_timestamp(
     topic: &str,
     start: i64,
     end: i64,
-) -> Result<String, String> {
+) -> Result<(String, TopicOffsetsMap), String> {
     let bootstrap_servers = app_state.config.lock().unwrap().default_cluster_config().bootstrap_servers;
     let mut stream = KafkaConsumer::connect(bootstrap_servers);
 
-    stream.assign_offsets_by_timestamp(topic, start).await?;
-    let event_name = "new_message";
+    let offsets_map = stream.assign_offsets_by_timestamp(topic, start).await?;
+    let now_epoch = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_else(|_err| Duration::from_millis(0))
+            .as_millis();
+    let event_name = format!("consumer_{now_epoch}/{topic}/{start}");
     let (sender, mut receiver) = mpsc::channel(1);
-    app_state.consumers.lock().unwrap().insert(event_name.to_string(), sender);
+    app_state.active_consumers.lock().unwrap().insert(event_name.clone(), sender);
+    let out_ev = event_name.clone();
 
     println!("Spawning Thread to consume messages");
     tokio::spawn(async move {
+        // TODO: we can subscribe to frontend event before hitting this command, and gen consumer id at frontend
+        sleep(Duration::from_secs(1)).await; // Let frontend subscribe to events. 
         loop {
             tokio::select! {
                 _ = receiver.recv() => {
-                    app_handle.emit::<Option<MessageEnvelope<String, String>>>(event_name, None).expect("Failed to emit event");
+                    app_handle.emit::<Option<MessageEnvelope<String, String>>>(&event_name, None).expect("Failed to emit event");
                     break;
                 },
                 result = stream.get_next_message().fuse() => {
@@ -206,17 +222,17 @@ pub async fn consume_topic_by_timestamp(
                     
                     if message.timestamp > end {
                         println!("Message with a timestamp later than end [{}]: {:?}", end, message);
-                        app_handle.emit::<Option<MessageEnvelope<String, String>>>(event_name, None).expect("Failed to emit event");
+                        app_handle.emit::<Option<MessageEnvelope<String, String>>>(&event_name, None).expect("Failed to emit event");
                         break;
                     }
     
                     println!("Emitted message on channel `{}`: {:?}", event_name, message);
-                    app_handle.emit::<Option<MessageEnvelope<String, String>>>(event_name, Some(message))
+                    app_handle.emit::<Option<MessageEnvelope<String, String>>>(&event_name, Some(message))
                         .expect("Failed to emit event");
                 }
             }
         }
     });
 
-    Ok(event_name.to_owned())
+    Ok((out_ev, offsets_map))
 }

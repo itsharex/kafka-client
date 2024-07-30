@@ -76,14 +76,14 @@ impl Config {
 
 pub struct ApplicationState {
     pub config: Mutex<Config>,
-    pub consumers: Mutex<HashMap<String, tokio::sync::mpsc::Sender<()>>>
+    pub active_consumers: Mutex<HashMap<String, tokio::sync::mpsc::Sender<()>>>
 }
 
 impl ApplicationState {
     pub fn load() -> Self {
         ApplicationState {
             config: Mutex::new(Config::load()),
-            consumers: Mutex::new(HashMap::new())
+            active_consumers: Mutex::new(HashMap::new())
         }
     }
 }
