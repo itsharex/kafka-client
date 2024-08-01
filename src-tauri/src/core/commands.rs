@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use futures::FutureExt;
-use rdkafka::Offset;
+use rdkafka::{Offset, Timestamp};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::mpsc;
@@ -9,7 +10,7 @@ use tokio::time::sleep;
 
 use crate::core::config::{ApplicationState, ClusterConfig};
 
-use crate::kafka::admin::{self, ConfigProperty};
+use crate::kafka::admin::{self, get_topic_partition_offsets, get_topics_offsets, ConfigProperty};
 use crate::kafka::consumer::{ConsumerGroup, ConsumerGroupOffsetDescription, KafkaConsumer, MessageEnvelope};
 use crate::kafka::metadata::ClusterMetadata;
 use crate::kafka::util::TopicOffsetsMap;
@@ -141,6 +142,32 @@ impl Into<Offset> for GroupOffset {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(tag="type", content="content")]
+pub enum FetchOffset {
+    Beginning,
+    End,
+    Timestamp(i64),
+}
+impl Display for FetchOffset {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Beginning => f.write_str("Beginning"),
+            Self::End => f.write_str("End"),
+            Self::Timestamp(t) => f.write_fmt(format_args!("Timestamp({})", t)),
+        }
+    }
+}
+impl Into<Offset> for FetchOffset {
+    fn into(self) -> Offset {
+        match self {
+            Self::End => Offset::End,
+            Self::Beginning => Offset::Beginning,
+            Self::Timestamp(timestamp) => Offset::Offset(timestamp)
+        }
+    }
+}
+
 
 #[tauri::command(async)]
 pub async fn create_group_offsets(app_config: State<'_, ApplicationState>, group_id: &str, topics: Vec<&str>, initial_offset: GroupOffset) -> Result<(), String> {
@@ -191,48 +218,66 @@ pub async fn consume_topic_by_timestamp(
     app_handle: AppHandle,
     app_state: State<'_, ApplicationState>,
     topic: &str,
-    start: i64,
-    end: i64,
+    start: FetchOffset,
+    end: Option<FetchOffset>
 ) -> Result<(String, TopicOffsetsMap), String> {
-    let bootstrap_servers = app_state.config.lock().unwrap().default_cluster_config().bootstrap_servers;
-    let mut stream = KafkaConsumer::connect(bootstrap_servers);
+  let bootstrap_servers = app_state.config.lock().unwrap().default_cluster_config().bootstrap_servers;
+  let mut stream = KafkaConsumer::connect(bootstrap_servers);
 
-    let offsets_map = stream.assign_offsets_by_timestamp(topic, start).await?;
-    let now_epoch = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_else(|_err| Duration::from_millis(0))
-            .as_millis();
-    let event_name = format!("consumer_{now_epoch}/{topic}/{start}");
-    let (sender, mut receiver) = mpsc::channel(1);
-    app_state.active_consumers.lock().unwrap().insert(event_name.clone(), sender);
-    let out_ev = event_name.clone();
+  let offsets_map = stream.assign_offsets_by_timestamp(topic, start.clone().into()).await?;
+  let now_epoch = SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .unwrap_or_else(|_err| Duration::from_millis(0))
+      .as_millis();
 
-    println!("Spawning Thread to consume messages");
-    tokio::spawn(async move {
-        // TODO: we can subscribe to frontend event before hitting this command, and gen consumer id at frontend
-        sleep(Duration::from_secs(1)).await; // Let frontend subscribe to events. 
-        loop {
-            tokio::select! {
-                _ = receiver.recv() => {
-                    app_handle.emit::<Option<MessageEnvelope<String, String>>>(&event_name, None).expect("Failed to emit event");
-                    break;
-                },
-                result = stream.get_next_message().fuse() => {
-                    let message = result.expect("Could not get next message");
-                    
-                    if message.timestamp > end {
-                        println!("Message with a timestamp later than end [{}]: {:?}", end, message);
-                        app_handle.emit::<Option<MessageEnvelope<String, String>>>(&event_name, None).expect("Failed to emit event");
-                        break;
-                    }
+  let event_name = format!("consumer_{now_epoch}/{topic}/{start}");
+  let (sender, mut receiver) = mpsc::channel(1);
+  
+  app_state.active_consumers.lock().unwrap().insert(event_name.clone(), sender);
+  
+  let out_ev = event_name.clone();
+  let consumed_topic = topic.to_owned();
+  let mut partitions_current_offsets: HashMap<i32, i64> = offsets_map.get(topic).cloned().unwrap().iter().collect();
+  
+  println!("Spawning Thread to consume messages");
+  tokio::spawn(async move {
+    // TODO: we can subscribe to frontend event before hitting this command, and gen consumer id at frontend
+    sleep(Duration::from_secs(1)).await; // Let frontend subscribe to events. 
     
-                    println!("Emitted message on channel `{}`: {:?}", event_name, message);
-                    app_handle.emit::<Option<MessageEnvelope<String, String>>>(&event_name, Some(message))
-                        .expect("Failed to emit event");
-                }
-            }
-        }
-    });
+    let end_offsets = end.filter(|e| !matches!(e, FetchOffset::Beginning))
+      .and_then(|end| get_topics_offsets(stream.client(), vec![&consumed_topic], end.into(), Offset::End).ok());
+
+
+    loop {
+      tokio::select! {
+          _ = receiver.recv() => {
+              app_handle.emit::<Option<MessageEnvelope<String, String>>>(&event_name, None).expect("Failed to emit event");
+              break;
+            },
+            result = stream.get_next_message().fuse() => {
+              let message = result.expect("Could not get next message");
+
+
+              // TODO: Handle End of stream if the user wanted to close the consumer once the end of *partition* is reached. 
+              // We'd need to fetch the end offsets before starting the consumer, and once that offset is reached for 
+              // the given partition we'd ignore the results from that partition, once all partitions end is reached
+              // we'll close the consumer and drop (implicit) it.
+
+              // if message.timestamp > end {
+              //     println!("Message with a timestamp later than end [{}]: {:?}", end, message);
+              //     app_handle.emit::<Option<MessageEnvelope<String, String>>>(&event_name, None).expect("Failed to emit event");
+              //     break;
+              // }
+
+              partitions_current_offsets;
+
+              println!("Emitted message on channel `{}`: {:?}", event_name, message);
+              app_handle.emit::<Option<MessageEnvelope<String, String>>>(&event_name, Some(message))
+                  .expect("Failed to emit event");
+          }
+      }
+    }
+  });
 
     Ok((out_ev, offsets_map))
 }

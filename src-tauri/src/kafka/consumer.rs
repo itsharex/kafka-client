@@ -1,7 +1,7 @@
 use byteorder::BigEndian;
 use itertools::Itertools;
 use rdkafka::{
-    consumer::{Consumer, StreamConsumer}, groups::{GroupInfo,  GroupMemberInfo}, message::{Headers, OwnedMessage}, util::Timeout, ClientConfig, Message, Offset, TopicPartitionList
+    bindings::rd_kafka_OffsetSpec_t, client::Client, consumer::{Consumer, DefaultConsumerContext, StreamConsumer}, groups::{GroupInfo,  GroupMemberInfo}, message::{Headers, OwnedMessage}, util::Timeout, ClientConfig, Message, Offset, TopicPartitionList
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, io::Cursor, time::Duration};
@@ -122,6 +122,10 @@ impl KafkaConsumer {
 
         KafkaConsumer::connect_config(config)
     }
+
+    pub fn client(&self) -> &Client<DefaultConsumerContext> {
+      self.consumer.client()
+    }
     
     pub fn connect_config(config: HashMap<String, String>) -> Self {
         let mut client_config = ClientConfig::new();
@@ -204,7 +208,7 @@ impl KafkaConsumer {
     pub async fn assign_offsets_by_timestamp(
         &mut self,
         topic: &str,
-        timestamp: i64,
+        offset: Offset,
     ) -> Result<TopicOffsetsMap, String> {
         let mut start_offset_timestamp_list = TopicPartitionList::new();
         let topic_partitions = self
@@ -223,14 +227,19 @@ impl KafkaConsumer {
 
         for partition in topic_partitions {
             start_offset_timestamp_list
-                .add_partition_offset(topic, partition.id, rdkafka::Offset::Offset(timestamp))
+                .add_partition_offset(topic, partition.id, offset)
                 .map_err(|err| err.to_string())?;
         }
 
-        let start_offsets_list = self
-            .consumer
-            .offsets_for_times(start_offset_timestamp_list, Duration::from_secs(2))
-            .map_err(|err| err.to_string())?;
+        let start_offsets_list = match offset {
+            Offset::Offset(_) => self
+              .consumer
+              .offsets_for_times(start_offset_timestamp_list, Duration::from_secs(2))
+              .map_err(|err| err.to_string())?,
+            Offset::Beginning => unsafe {get_topic_partition_offsets(self.consumer.client(), &start_offset_timestamp_list)?},
+            Offset::End => unsafe {get_topic_partition_offsets(self.consumer.client(), &start_offset_timestamp_list)?},
+            _ => panic!("unsupported Offset type {:?}", offset),
+        };
 
         self.consumer
             .assign(&start_offsets_list)
