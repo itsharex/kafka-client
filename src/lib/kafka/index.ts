@@ -112,8 +112,8 @@ export type MessageEnvelope = {
 };
 
 export type JsonMessageEnvelope = MessageEnvelope & { payloadJson: Record<string, unknown> | null };
-export function consumeFromTopicWithinTimeRange(topic: string, timeRange: [number, number]) {
-  const [start, end] = timeRange;
+export type FetchOffset = { type: "Beginning" } | { type: "End" } | { type: "Timestamp"; content: number };
+export function consumeTopicBetweenOffsets(topic: string, start: FetchOffset, end?: FetchOffset) {
   return invoke<[string, Record<string, [number, number][]>]>("consume_topic_by_timestamp", { topic, start, end });
 }
 

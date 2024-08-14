@@ -185,14 +185,14 @@ pub async fn delete_consumer_group(bootstrap_servers: Vec<String>, group: &str) 
     let admin = create_admin_client(bootstrap_servers, ClientConfig::default());
     let results = admin.delete_groups(&[group], &AdminOptions::default())
     .await
-    .map_err(|err| err.to_string())?;
+    .map_err(|err: rdkafka::error::KafkaError| err.to_string())?;
 
     let result = results.first().unwrap().to_owned();
         
     result.map_err(|(err_str, err_code)| format!("[{}]: {}", err_code, err_str))
 }
 
-fn get_topics_offsets<C: ClientContext>(client: &Client<C>, topics: Vec<&str>, offset: Offset, fallback_offset: Offset) -> Result<TopicPartitionList, String> {
+pub fn get_topics_offsets<C: ClientContext>(client: &Client<C>, topics: Vec<&str>, offset: Offset, fallback_offset: Offset) -> Result<TopicPartitionList, String> {
     // Fetch all topic/paritions with latest metadata.
     let mut tpl = TopicPartitionList::new();
     for topic_name in &topics {

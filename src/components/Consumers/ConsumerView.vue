@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { ref, watch, watchEffect } from "vue";
-import { GroupOffset, JsonMessageEnvelope, MessageEnvelope, consumeFromTopicWithinTimeRange, stopConsumer } from "@/lib/kafka";
+import { Ref, ref, watch, watchEffect } from "vue";
+import { FetchOffset, GroupOffset, JsonMessageEnvelope, MessageEnvelope, consumeTopicBetweenOffsets, stopConsumer } from "@/lib/kafka";
 import { cn, getLang, jsonText } from "@/lib/utils";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { Label } from "../ui/label";
-import { type DateValue, today, DateFormatter, getLocalTimeZone } from "@internationalized/date";
+import { type DateValue, toCalendarDateTime, parseTime, now, DateFormatter, getLocalTimeZone } from "@internationalized/date";
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon } from "lucide-vue-next";
 import { Calendar } from "../ui/calendar";
@@ -42,20 +42,28 @@ const stop = async () => {
 }
 
 const df = new DateFormatter(getLang(), {
-  dateStyle: 'long',
+  dateStyle: "long",
+  timeStyle: "medium",
 });
-const offsetType = ref<GroupOffset["type"]>("End");
-const offsetTimestamp = ref<DateValue>(today(getLocalTimeZone()));
+const tf = new DateFormatter(getLang(), {
+  timeStyle: "medium",
+  hour12: false
+})
+const offsetType = ref<FetchOffset["type"]>("End");
+const offsetTimestamp = ref<DateValue>(now(getLocalTimeZone()));
 
 function fetchMessage() {
   if (isConsuming.value) {
     return;
   }
-  const now = Date.now(); // ms epoch
-  const duration = 24 * 60 * 60 * 1000 // 24hrs duration in ms
+
   isConsuming.value = true;
   consumerId.value = undefined;
-  consumeFromTopicWithinTimeRange(props.topic, [now-duration, now+(duration/4)])
+  const start: FetchOffset = offsetType.value === 'Timestamp' 
+    ? {type: offsetType.value, content: offsetTimestamp.value.toDate(getLocalTimeZone()).getTime()*1000 }
+    : {type: offsetType.value};
+
+  consumeTopicBetweenOffsets(props.topic, start, {type: "End"})
     .then(async ([event_channel, offsets]) => {
       console.log("start from", {offsets});
       consumerId.value = event_channel;
@@ -64,6 +72,16 @@ function fetchMessage() {
       toast({title: "Error", description: ""+err, variant:"destructive"});
       isConsuming.value = false;
     });
+}
+
+const updateTime = (val: string) => {
+  const time = parseTime(val);
+  const dt = toCalendarDateTime(offsetTimestamp.value as DateValue, time);
+  console.log("updateTimeValue: ", dt);
+  // offsetTimestamp.value.set({hour: time.hour});
+  // offsetTimestamp.value.set({minute: time.minute});
+  // offsetTimestamp.value.set({second: time.second});
+  // offsetTimestamp.value.set({millisecond: time.millisecond});
 }
 
 watchEffect(async () => {
@@ -105,9 +123,8 @@ watch(() => props.topic, (newTopic, oldTopic) => {
       <h2 class="text-xl font-bold mb-2 flex items-center space-x-2">
         <span v-text="topic"></span>
       </h2>
-      <p>Consumer will start consuming from 24hrs ago till now and until 6hrs from now.</p>
     </div>
-    <Dialog>
+    <Dialog :open="true">
       <DialogTrigger as-child>
         <Button :disabled="isConsuming">Consume</Button>
       </DialogTrigger>
@@ -135,13 +152,13 @@ watch(() => props.topic, (newTopic, oldTopic) => {
                     <SelectItem value="Beginning">
                       Earliest
                     </SelectItem>
-                    <SelectItem value="Offset">
+                    <SelectItem value="Timestamp">
                       By Timestamp
                     </SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              <Popover v-if="offsetType === 'Offset'">
+              <Popover v-if="offsetType === 'Timestamp'">
                 <PopoverTrigger as-child>
                   <Button variant="outline" :class="cn(
                       'w-[280px] justify-start text-left font-normal',
@@ -152,7 +169,8 @@ watch(() => props.topic, (newTopic, oldTopic) => {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent class="w-auto p-0">
-                  <Calendar v-model:model-value="offsetTimestamp" initial-focus />
+                  <Calendar v-model="offsetTimestamp" initial-focus  />
+                  <Input type="time" :value="tf.format(offsetTimestamp.toDate(getLocalTimeZone()))" @update="updateTime"/>
                 </PopoverContent>
               </Popover>
             </div>
