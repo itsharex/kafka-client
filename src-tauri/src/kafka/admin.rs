@@ -1,13 +1,7 @@
 use std::{borrow::Borrow, collections::HashMap, ffi::{CStr, CString}, ptr::slice_from_raw_parts, time::Duration};
 use itertools::Itertools;
 use rdkafka::{
-    admin::{AdminClient, AdminOptions, AlterConfig, ConfigEntry, ConfigSource as KafkaConfigSource, NewTopic, ResourceSpecifier, TopicReplication, TopicResult}, 
-    bindings::{rd_kafka_AdminOptions_new, rd_kafka_ListOffsets, rd_kafka_ListOffsetsResultInfo_topic_partition, rd_kafka_ListOffsets_result_infos, rd_kafka_event_ListOffsets_result, rd_kafka_event_destroy, rd_kafka_event_error, rd_kafka_event_error_string, rd_kafka_queue_destroy, rd_kafka_queue_new, rd_kafka_queue_poll}, 
-    client::{Client, DefaultClientContext}, 
-    config::FromClientConfig, 
-    consumer::{BaseConsumer, CommitMode, Consumer}, 
-    error::IsError, topic_partition_list::TopicPartitionListElem,  types::RDKafkaErrorCode, 
-    util::Timeout,  ClientConfig, ClientContext, Offset, TopicPartitionList
+    admin::{AdminClient, AdminOptions, AlterConfig, ConfigEntry, ConfigResource, ConfigSource as KafkaConfigSource, NewTopic, OwnedResourceSpecifier, ResourceSpecifier, TopicReplication, TopicResult}, bindings::{rd_kafka_AdminOptions_new, rd_kafka_ListOffsets, rd_kafka_ListOffsetsResultInfo_topic_partition, rd_kafka_ListOffsets_result_infos, rd_kafka_event_ListOffsets_result, rd_kafka_event_destroy, rd_kafka_event_error, rd_kafka_event_error_string, rd_kafka_queue_destroy, rd_kafka_queue_new, rd_kafka_queue_poll}, client::{Client, DefaultClientContext}, config::FromClientConfig, consumer::{BaseConsumer, CommitMode, Consumer}, error::IsError, statistics::Topic, topic_partition_list::TopicPartitionListElem, types::RDKafkaErrorCode, util::Timeout, ClientConfig, ClientContext, Offset, TopicPartitionList
 };
 use serde::{Deserialize, Serialize};
 
@@ -69,19 +63,25 @@ pub async fn alter_topic_configs(bootstrap_servers: Vec<String>, topic: &str, co
 }
 
 
-pub async fn get_topic_configs(bootstrap_servers: Vec<String>, topic: &str) -> Result<Vec<ConfigProperty>, String> {
+pub async fn get_topic_configs(bootstrap_servers: Vec<String>, topics:Vec<String>) -> Result<HashMap<String, Vec<ConfigProperty>>, String> {
     let admin = create_admin_client(bootstrap_servers, ClientConfig::default());    
-    let mut results = admin.describe_configs(&[ResourceSpecifier::Topic(topic)], &AdminOptions::default())
-    .await
-    .map_err(|err| err.to_string())?;
+    let resource_specifiers: Vec<ResourceSpecifier> = topics.iter().map(|topic| ResourceSpecifier::Topic(topic)).collect();
+    let results = admin.describe_configs(&resource_specifiers, &AdminOptions::default())
+        .await
+        .map_err(|err| err.to_string())?;
 
-    let first_result = results.pop().unwrap();
     
-    first_result.map_err(|err| err.to_string())
-        .map(|item| item.entries.iter()
-            .map(|conf| ConfigProperty::from(conf))
-            .collect_vec()
-        )
+    let configs_list = results.into_iter()
+        .map(|result| result.map_err(|err| err.to_string()))
+        .collect::<Result<Vec<ConfigResource>, String>>()?;
+
+
+    let configs = configs_list.into_iter().filter_map(|res| match res.specifier {
+        OwnedResourceSpecifier::Topic(topic) => Some((topic, res.entries.into_iter().map(|entry| ConfigProperty::from(&entry)).collect())),
+        _ => None
+    }).collect();
+
+    Ok(configs)
 }
 
 #[derive(Serialize, Deserialize)]

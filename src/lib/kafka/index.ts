@@ -11,7 +11,11 @@ export function deleteTopic(topic: string): Promise<string> {
 }
 
 export function getTopicConfigs(topic: string): Promise<ConfigEntry[]> {
-  return invoke<ConfigEntry[]>("fetch_topic_configs", { topic });
+  return getAllTopicsConfigs([topic]).then(record => record[topic]);
+}
+
+export function getAllTopicsConfigs(topics: string[]): Promise<Record<string, ConfigEntry[]>> {
+  return invoke<Record<string, ConfigEntry[]>>("fetch_topic_configs", { topics });
 }
 
 export function alterTopicConfigs(topic: string, configs: Record<string, string>): Promise<void> {

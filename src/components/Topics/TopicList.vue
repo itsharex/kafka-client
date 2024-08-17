@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { Fzf } from 'fzf';
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { ArrowPathIcon, PlusIcon } from '@heroicons/vue/16/solid';
 import {
 	Dialog,
@@ -21,21 +20,21 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@
 import { useToast } from '@/components/ui/toast';
 import { TrashIcon } from 'lucide-vue-next';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useTopics } from '@/stores/topics';
+import { useClusterMetadata } from '@/stores/metadata';
+import { storeToRefs } from 'pinia';
 
-const props = defineProps<{ topics: TopicInfo[], error: string }>();
 const {toast} = useToast();
 const newTopicName = ref<string>();
 const newTopicPartitions = ref(3);
+
 const onEvent = defineEmits(['refresh']);
 const selectedTopicModel = defineModel<TopicInfo | undefined>('selectedTopic')
-const topicsIndex = computed(() => new Fzf(props.topics, { selector: (d) => d.name, sort: true }));
-// const search = ref("");
-const filterTopicsList = (search: string) =>
-	topicsIndex.value
-		.find(search)
-		.sort((a, b) => b.score - a.score)
-		.map((e) => e.item); 
-
+const metadataStore = useClusterMetadata();
+const topicsStore = useTopics();
+const { isLoading, error } = storeToRefs(metadataStore);
+const { allTopics } = storeToRefs(topicsStore);
+const { filterTopics } = topicsStore
 const isNewTopicDialogOpen = ref(false);
 const createNewTopic = async () => {
 	if (!newTopicName.value) {
@@ -103,14 +102,14 @@ const deleteTopic = (topic: string) => {
 			</Button>
 		</div>
 	</div>
-	<div class="px-2">
-		<Command v-model="selectedTopicModel" :filter-function="(_, search) => filterTopicsList(search)">
+	<div  v-if="!isLoading" class="px-2">
+		<Command v-model="selectedTopicModel" :filter-function="(_, search) => filterTopics(search)">
 			<CommandInput id="search-input" placeholder="Search Topics..." />
-			<p v-if="props.error" class="-mx-2 px-2 py-1 leading-tight bg-error-100 text-error-800 my-2"
-				v-text="props.error"></p>
+			<p v-if="error" class="-mx-2 px-2 py-1 leading-tight bg-error-100 text-error-800 my-2"
+				v-text="error"></p>
 			<CommandList>
 				<CommandEmpty>
-					<p v-if="topics.length > 0">
+					<p v-if="allTopics.length > 0">
 						No Topics Match the search keywords. Try clearing search.
 					</p>
 					<p v-else>
@@ -120,7 +119,7 @@ const deleteTopic = (topic: string) => {
 						</Button>
 					</p>
 				</CommandEmpty>
-				<CommandItem v-for="topic of topics" :key="topic.name"
+				<CommandItem v-for="topic of allTopics" :key="topic.name"
 					class="-mx-2 px-4 py-2 flex space-x-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 ui-checked:bg-primary ui-checked:text-white cursor-pointer"
 					:value="topic">
 					<div class="flex-1">
@@ -154,5 +153,8 @@ const deleteTopic = (topic: string) => {
 				</CommandItem>
 			</CommandList>
 		</Command>
+	</div>
+	<div v-else class="grid items-center justify-center">
+		<div class="w-24 h-24 border-4 border-transparent border-t-primary-foreground animate-spin"></div>
 	</div>
 </template>

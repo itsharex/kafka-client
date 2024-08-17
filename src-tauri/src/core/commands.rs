@@ -38,16 +38,16 @@ pub fn get_topics(app_config: State<ApplicationState>) -> Result<ClusterMetadata
 #[tauri::command(async)]
 pub async fn fetch_topic_configs(
   app_config: State<'_, ApplicationState>,
-  topic: &str,
-) -> Result<Vec<ConfigProperty>, String> {
+  topics: Vec<String>,
+) -> Result<HashMap<String, Vec<ConfigProperty>>, String> {
   let bootstrap_servers = app_config
-  .config
-  .lock()
-  .unwrap()
-  .default_cluster_config()
-  .bootstrap_servers;
+    .config
+    .lock()
+    .unwrap()
+    .default_cluster_config()
+    .bootstrap_servers;
   
-  admin::get_topic_configs(bootstrap_servers, topic).await
+  admin::get_topic_configs(bootstrap_servers, topics).await
 }
 
 #[tauri::command(async)]
