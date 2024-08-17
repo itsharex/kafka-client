@@ -118,22 +118,24 @@ pub fn get_group_offsets(
     app_config: State<'_, ApplicationState>,
     topic: &str,
     partitions: i32,
-    config: Vec<(&str, &str)>,
+    replication: i32,
+    configs: HashMap<String, String>,
   ) -> Result<String, String> {
-    let future = admin::create_topic(
-      app_config
+    let bootstrap_servers = app_config
       .config
       .lock()
       .unwrap()
       .default_cluster_config()
-      .bootstrap_servers,
+      .bootstrap_servers;
+
+    let result = admin::create_topic(
+      bootstrap_servers,
       topic,
       partitions,
-      1,
-      config,
+      replication,
+      configs,
       None,
-    );
-    let result = future.await;
+    ).await;
     
     match result {
       Ok(out) => Ok(out),

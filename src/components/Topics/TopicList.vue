@@ -41,18 +41,28 @@ const createNewTopic = async () => {
 		return;
 	}
 
-	await createTopic({topic: newTopicName.value, partitions: newTopicPartitions.value, config: []})
+	const createdTopic = await topicsStore.createTopic({
+		topic: newTopicName.value, 
+		partitions: newTopicPartitions.value, 
+		replication: 1, 
+		configs: {}
+	}).catch(err => {
+		toast({title: "Error", description: err, variant: "destructive"});
+	});
 	newTopicName.value = "";
 	newTopicPartitions.value = 3;
-	onEvent("refresh");
 	isNewTopicDialogOpen.value = false;
+
+	if (createdTopic) {
+		toast({title: "Success", description: `New Topic '${createdTopic.name}' created successfully!`});
+		selectedTopicModel.value = createdTopic;
+	}
 }
 
 const deleteTopic = (topic: string) => {
-	adminDeleteTopic(topic)
+	topicsStore.deleteTopic(topic)
 		.then((deletedTopic) => {
 			toast({title: "Success", description: `Topic '${deletedTopic}' deleted!`});
-			onEvent("refresh");
 		})
 		.catch(err => toast({title: "Error", description: err, variant: "destructive"}));
 }

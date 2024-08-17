@@ -29,12 +29,14 @@ pub async fn create_topic(
     topic: &str,
     partitions: i32,
     replication_factor: i32,
-    topic_config: Vec<(&str, &str)>,
+    topic_config: HashMap<String, String>,
     options: Option<AdminOptions>,
 ) -> TopicResult {
     let client = create_admin_client(bootstrap_servers, ClientConfig::default());
     let new_topic = NewTopic {
-        config: topic_config,
+        config: topic_config.iter()
+            .map(|(key, val)| (key.as_str(), val.as_str()))
+            .collect(),
         name: topic,
         num_partitions: partitions,
         replication: TopicReplication::Fixed(replication_factor),

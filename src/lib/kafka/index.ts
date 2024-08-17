@@ -1,9 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 
 // Kafka Admin
-export type CreateTopicRequest = { topic: string; partitions: number; config: string[] };
-export function createTopic(topicCreateRequest: CreateTopicRequest): Promise<undefined> {
-  return invoke("create_topic", topicCreateRequest);
+export type CreateTopicRequest = {
+  topic: string;
+  partitions: number;
+  replication: number;
+  configs: Record<string, string>;
+};
+export function createTopic(topicCreateRequest: CreateTopicRequest): Promise<string> {
+  return invoke<string>("create_topic", topicCreateRequest);
 }
 
 export function deleteTopic(topic: string): Promise<string> {

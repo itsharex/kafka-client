@@ -1,6 +1,9 @@
 import {
   alterTopicConfigs,
   ConfigEntry,
+  createTopic as adminCreateTopic,
+  deleteTopic as adminDeleteTopic,
+  CreateTopicRequest,
   getAllTopicsConfigs,
   getTopicConfigs,
   TopicInfo
@@ -8,8 +11,10 @@ import {
 import { Fzf } from "fzf";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
+import { useClusterMetadata } from "./metadata";
 
 const DEFAULT_CONFIG_TTL = 5 * 60 * 1000; // 5 mins
+
 export const useTopics = defineStore("topics", () => {
   let allTopics = ref<TopicInfo[]>([]);
   const isEmpty = computed(() => allTopics.value.length === 0);
@@ -54,6 +59,27 @@ export const useTopics = defineStore("topics", () => {
     }
   }
 
+  async function createTopic(newTopic: CreateTopicRequest) {
+    if (!newTopic.topic) {
+      return;
+    }
+
+    const { fetchMetadata } = useClusterMetadata();
+
+    const topicName = await adminCreateTopic(newTopic);
+    const { topics } = await fetchMetadata();
+    return topics.find(topic => topic.name === topicName);
+  }
+
+  async function deleteTopic(topic: string) {
+    const { fetchMetadata } = useClusterMetadata();
+
+    const deletedTopic = await adminDeleteTopic(topic);
+    await fetchMetadata();
+
+    return deletedTopic;
+  }
+
   async function fetchTopicConfigs(topic: string) {
     try {
       configLoading.value = true;
@@ -95,6 +121,8 @@ export const useTopics = defineStore("topics", () => {
 
   return {
     allTopics,
+    createTopic,
+    deleteTopic,
     isEmpty,
     topicsIndex,
     isValidTopic,

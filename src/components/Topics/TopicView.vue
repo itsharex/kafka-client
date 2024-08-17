@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { useTopics } from "@/stores/topics";
 import { useBrokers } from "@/stores/brokers";
+import { storeToRefs } from "pinia";
 
 const props = defineProps<{
   topic: TopicInfo;
@@ -22,8 +23,10 @@ function isReplicaInSync(partition: PartitionInfo, replica: number) {
   return partition.isr.includes(replica);
 }
 const { getBrokerLabel } = useBrokers();
-const {configLoading, nonDefaultTopicConfigs, removeTopicConfigs, addTopicConfigs } = useTopics();
-const nonDefaultConfigs = computed(() => nonDefaultTopicConfigs(props.topic.name));
+const topicStore = useTopics();
+const {configLoading, nonDefaultTopicConfigs } = storeToRefs(topicStore);
+const {removeTopicConfigs, addTopicConfigs } = topicStore;
+const nonDefaultConfigs = computed(() => nonDefaultTopicConfigs.value(props.topic.name));
 
 const showAddConfigsDialog = ref(false);
 const newConfig = ref(allTopicConfigs.at(0)?.name ?? "");

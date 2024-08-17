@@ -2,7 +2,6 @@ import { getClusterMetadata } from "@/lib/kafka";
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { useTopics } from "./topics";
-import { useBreakpoints } from "@vueuse/core";
 import { useBrokers } from "./brokers";
 
 const DEFAULT_TTL = 5 * 60 * 1000; // 5 mins
@@ -29,6 +28,7 @@ export const useClusterMetadata = defineStore("metadata", () => {
         setBrokers(data.brokers);
         originatingBrokerId.value = data.originating_broker_id;
         lastError.value = "";
+        return data;
       })
       .finally(() => {
         isLoading.value = false;
